@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Slave Base</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="bar">
+        <div class="brand">
+          <h1>Slave Base</h1>
+          <p class="demo-only">Demo mode: the people and their tasks are examples. Connect Supabase to go live.</p>
+          <p class="live-only">Live: every move here is a real agent reporting in.</p>
+        </div>
+        <div class="hud">
+          <div class="pill live-only"><i class="dot live"></i><span id="live">Connecting…</span></div>
+          <div class="pill" id="clock">8:00 AM</div>
+          <div class="pill"><b id="kWork">0</b><span>working</span></div>
+          <div class="pill"><b id="kDone">0</b><span>tasks done</span></div>
+          <div class="speed demo-only" role="group" aria-label="Simulation speed">
+            <button type="button" aria-pressed="false" data-s="0">Pause</button>
+            <button type="button" aria-pressed="true" data-s="1">1×</button>
+            <button type="button" aria-pressed="false" data-s="3">3×</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <section class="stage" aria-label="Town map">
+          <div id="stage-canvas"></div>
+          <div class="legend" id="legend"></div>
+        </section>
+        <aside>
+          <div class="card focus" id="focus"></div>
+          <div class="card sec">
+            <h3>Townsfolk <small>click anyone to follow</small></h3>
+            <ul class="roster" id="roster"></ul>
+          </div>
+          <div class="card sec">
+            <h3>Town crier <small>live activity</small></h3>
+            <ol class="feed" id="feed"></ol>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+# Runs your agents on a schedule for free on GitHub's servers.
+# Add these in GitHub > Settings > Secrets and variables > Actions:
+#   ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY
+name: Run agents
+
+on:
+  schedule:
+    - cron: '13 12 * * 1-5'   # weekdays at 12:13 UTC (8:13 AM Eastern during daylight time)
+  workflow_dispatch:            # adds a "Run workflow" button
+    inputs:
+      job:
+        description: 'Which job to run (lots, foreclosures, rents, captions, ideas)'
+        required: true
+        default: 'lots'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.job)) || fromJSON('["lots","rents","captions","ideas"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run agent -- ${{ matrix.job }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MAX_USD_PER_RUN: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: output-${{ matrix.job }}
+          path: output/
+          if-no-files-found: ignore
