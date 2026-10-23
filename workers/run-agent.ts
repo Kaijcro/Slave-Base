@@ -93,7 +93,7 @@ try {
   summary = 'Ran into an error';
   console.error(e);
   if (!usingApiKey) {
-    console.error('\nIf this mentions logging in: run `claude` in Terminal once, sign in with your Claude account, then try again.');
+    console.error('\nIf this mentions logging in or an expired session:\n  1. Run `claude`, type /login, sign in with your Claude account, then /exit.\n  2. Still failing? Run `claude setup-token` and add the token to .env as CLAUDE_CODE_OAUTH_TOKEN=...');
   }
 }
 
@@ -106,4 +106,4 @@ if (!failed) {
   await sleep(9000);
   await report(job.agent, 'finished', 'hall', 'Report filed at Town Hall');
 }
-console.log(`✔ ${summary}`);
+console.log(failed ? `✖ ${summary}` : `✔ ${summary}`);
