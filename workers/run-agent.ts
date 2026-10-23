@@ -4,7 +4,12 @@
  *   npm run agent -- lots          (Hank scans vacant lots)
  *   npm run agent -- captions      (June writes Instagram captions)
  *
- * Needs ANTHROPIC_API_KEY, SUPABASE_URL and SUPABASE_SECRET_KEY in .env.
+ * Needs SUPABASE_URL and SUPABASE_SECRET_KEY in .env.
+ *
+ * Who pays for the AI:
+ *   - No ANTHROPIC_API_KEY in .env -> uses your Claude subscription (log in once by running `claude`).
+ *     Usage counts toward your plan's limits, shared with the Claude app.
+ *   - ANTHROPIC_API_KEY set        -> billed to that API key instead.
  */
 import 'dotenv/config';
 import { mkdirSync } from 'node:fs';
@@ -18,10 +23,11 @@ if (!job) {
   console.log(`Usage: npm run agent -- <job>\nJobs: ${Object.keys(JOBS).join(', ')}`);
   process.exit(1);
 }
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.error('Missing ANTHROPIC_API_KEY in .env (get one at console.anthropic.com).');
-  process.exit(1);
-}
+// A blank or placeholder key means "use my Claude subscription". Remove it so it can't override the login.
+const apiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? '';
+const usingApiKey = apiKey.startsWith('sk-ant-') && apiKey.length > 20;
+if (!usingApiKey) delete process.env.ANTHROPIC_API_KEY;
+console.log(usingApiKey ? 'Paying with: your API key' : 'Paying with: your Claude subscription (plan limits)');
 mkdirSync('output', { recursive: true });
 
 /** Turns a tool call into a short, human sentence for the speech bubble. */
@@ -86,6 +92,9 @@ try {
   failed = true;
   summary = 'Ran into an error';
   console.error(e);
+  if (!usingApiKey) {
+    console.error('\nIf this mentions logging in: run `claude` in Terminal once, sign in with your Claude account, then try again.');
+  }
 }
 
 await report(job.agent, 'finished', job.place, summary);

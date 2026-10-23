@@ -57,18 +57,22 @@ From now on, open this folder in Claude Code and ask for changes in plain Englis
 
 ## 4. Run a real agent
 
-1. Get an API key at https://console.anthropic.com and put it in `.env` as `ANTHROPIC_API_KEY`. Set a monthly spend limit there too.
-2. Run one of the jobs in `workers/jobs.ts`:
+Agents can run on your **Claude subscription** (Pro or Max), so there's nothing extra to pay. Their usage counts toward your plan's limits, which are shared with the Claude app.
+
+1. Install Claude Code once: `npm install -g @anthropic-ai/claude-code`
+2. Sign in once: run `claude`, choose your Claude account, finish the login in your browser, then type `/exit`.
+3. In `.env`, leave `ANTHROPIC_API_KEY=` **blank**. A key there would override your subscription.
+4. Run one of the jobs in `workers/jobs.ts`:
    ```bash
+   npm run agent -- captions   # June writes a week of captions (Goose Pop Shop)
    npm run agent -- ideas      # Kofi researches new AI business ideas (AI Enterprizes)
    npm run agent -- lots       # Hank searches for vacant lots (Refuge Properties)
    npm run agent -- rents      # Theo pulls rent comps (Refuge Properties)
-   npm run agent -- captions   # June writes a week of captions (Goose Pop Shop)
    npm run agent -- foreclosures
    ```
    Watch the town: the agent walks to its building, and each web search or page it reads pops up as a speech bubble. When it's done, it carries the result to Town Hall. The full results are saved in `output/`.
 
-Each run stops at `MAX_USD_PER_RUN` (default $1). Most runs cost much less.
+Prefer pay-per-use instead? Put an API key from console.anthropic.com in `ANTHROPIC_API_KEY`. Each run then stops at `MAX_USD_PER_RUN` (default $1).
 
 **Add your own job:** copy an entry in `workers/jobs.ts`, then change the agent, the building and the prompt.
 
@@ -80,7 +84,7 @@ Each run stops at `MAX_USD_PER_RUN` (default $1). Most runs cost much less.
 3. Click **Deploy**. Every push to GitHub redeploys automatically.
 
 **Scheduled agents (GitHub Actions, free):**
-1. In your repo, open **Settings > Secrets and variables > Actions** and add `ANTHROPIC_API_KEY`, `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
+1. In your repo, open **Settings > Secrets and variables > Actions** and add `ANTHROPIC_API_KEY`, `SUPABASE_URL` and `SUPABASE_SECRET_KEY`. Scheduled runs happen on GitHub's computers, not yours, so they need an API key (paid per use). To stay on your subscription, run agents from your Mac instead.
 2. `.github/workflows/agents.yml` then runs the ideas, lots, rents and captions jobs every weekday morning. To run one now, open the **Actions** tab, pick **Run agents**, and click **Run workflow**.
 
 **Ask Claude from GitHub (optional):** inside Claude Code, run `/install-github-app`. After that you can comment `@claude ...` on any issue and Claude opens a pull request.
