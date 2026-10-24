@@ -51,7 +51,7 @@ export class TownArt {
     this.emitters = B.emitters ? B.emitters() : {};
     this.placeProps();
     this.spawnCars();
-    for (let i = 0; i < 3; i++) this.ducks.push({ u: 25 + i * 0.6, v: 25 - i * 0.4, a: i * 2, t: 0 });
+    for (let i = 0; i < 3; i++) this.ducks.push({ u: 15 + i * 0.6, v: 25 - i * 0.4, a: i * 2, t: 0 });
   }
 
   /* ---------------- set dressing ---------------- */
@@ -99,19 +99,24 @@ export class TownArt {
         }
         S.push(P.benchPix(ou + 5, ov + 7.85, true));
       }
-      if (type === 'lot') {
-        S.push(P.signPix(ou + 5, ov + 7.2, true, [{ t: 'OPEN LOT', size: 6, fg: '#3a2a1a' }, { t: 'YOUR NEXT BUSINESS', size: 4, fg: '#7a4a2a' }], '#f6e3a0'));
-        S.push(P.fencePix(ou + 2.3, ov + 2.3, ou + 7.7, ov + 2.3, '#a0744a'), P.fencePix(ou + 2.3, ov + 2.3, ou + 2.3, ov + 7.7, '#a0744a'));
-        S.push(P.fencePix(ou + 7.7, ov + 2.3, ou + 7.7, ov + 7.7, '#a0744a'), P.fencePix(ou + 2.3, ov + 7.7, ou + 4.1, ov + 7.7, '#a0744a'), P.fencePix(ou + 5.9, ov + 7.7, ou + 7.7, ov + 7.7, '#a0744a'));
+      if (type === 'playground') {
+        S.push(P.swingSetPix(ou + 4.2, ov + 3.6), P.slidePix(ou + 5.6, ov + 4.4), P.domePix(ou + 3.6, ov + 4.8));
+        S.push(P.benchPix(ou + 6.2, ov + 6.95, true), P.benchPix(ou + 7.4, ov + 5.6, false));
+        for (const [a, b] of [[2.5, 2.5], [7.5, 2.5], [2.5, 7.5], [7.5, 7.6], [6.2, 7.6], [2.5, 5.2]]) tree(ou + a, ov + b);
+      }
+      if (type === 'courts') {
+        S.push(P.hoopPix(ou + 2.55, ov + 3.65, 1), P.hoopPix(ou + 7.45, ov + 3.65, -1), P.netPix(ou + 5, ov + 5.4, ov + 7.3));
+        S.push(P.benchPix(ou + 5, ov + 2.2, true), P.benchPix(ou + 5, ov + 7.8, true));
+        for (const [a, b] of [[2.2, 2.2], [7.8, 2.2], [2.2, 7.8], [7.8, 7.8]]) palm(ou + a, ov + b);
       }
       if (type === 'square') {
         // hedges and planters already in the ground; a few palms on the corners
         palm(ou + 2.5, ov + 2.5); palm(ou + 7.5, ov + 2.5); palm(ou + 2.5, ov + 7.6); palm(ou + 7.5, ov + 7.6);
       }
       if (type === 'goose') {
-        S.push(P.fencePix(7.9, 12.7, 7.9, 14.4), P.fencePix(7.9, 15.6, 7.9, 17.3), P.fencePix(6.4, 17.3, 7.9, 17.3), P.fencePix(6.4, 12.7, 7.9, 12.7));
-        S.push(P.umbrellaPix(7.25, 13.6, '#ff86b0'), P.umbrellaPix(7.25, 16.45, '#7fd8c0'));
-        bush(2.6, 12.6); bush(2.6, 17.4); tree(2.6, 15);
+        S.push(P.fencePix(ou + 7.9, ov + 2.7, ou + 7.9, ov + 4.4), P.fencePix(ou + 7.9, ov + 5.6, ou + 7.9, ov + 7.3), P.fencePix(ou + 6.4, ov + 7.3, ou + 7.9, ov + 7.3), P.fencePix(ou + 6.4, ov + 2.7, ou + 7.9, ov + 2.7));
+        S.push(P.umbrellaPix(ou + 7.25, ov + 3.6, '#ff86b0'), P.umbrellaPix(ou + 7.25, ov + 6.45, '#7fd8c0'));
+        bush(ou + 2.6, ov + 2.6); bush(ou + 2.6, ov + 7.4); tree(ou + 2.6, ov + 5);
       }
       if (type === 'ai') { palm(ou + 2.4, ov + 2.4); palm(ou + 7.6, ov + 7.6); palm(ou + 2.4, ov + 7.6); }
       if (type === 'refuge') { tree(ou + 2.2, ov + 2.5); tree(ou + 2.2, ov + 5); palm(ou + 2.2, ov + 7.5); }
@@ -122,7 +127,7 @@ export class TownArt {
       palm(s, 10 + 1.12); palm(s, 20 - 1.12);
     }
     // parked cars and the red sports car out front at Refuge
-    S.push(P.parkedCar(13.4, 7.7, 'u+', { body: '#d7263d', style: 'sport' }));
+    S.push(P.parkedCar(23.4, 7.7, 'u+', { body: '#d7263d', style: 'sport' }));
     S.push(P.parkedCar(4.5, 9.45, 'u-', CAR_LOOKS[1]), P.parkedCar(26.5, 9.45, 'u-', CAR_LOOKS[5]), P.parkedCar(10.55, 4.5, 'v+', CAR_LOOKS[0]));
     S.push(P.parkedCar(29.45, 25, 'v-', CAR_LOOKS[3]), P.parkedCar(0.55, 6, 'v+', CAR_LOOKS[4]), P.parkedCar(14, 30.55, 'u+', CAR_LOOKS[2]));
     // hydrants and bins
@@ -194,7 +199,7 @@ export class TownArt {
     for (const d of this.ducks) {
       d.t += dt;
       d.a += dt * 0.25 * (Math.sin(d.t * 0.3) + 0.4);
-      const nu = 25 + Math.cos(d.a) * 1.5, nv = 25 + Math.sin(d.a) * 1.2;
+      const nu = 15 + Math.cos(d.a) * 1.5, nv = 25 + Math.sin(d.a) * 1.2;
       d.u = nu; d.v = nv;
     }
     if (!reduce) {

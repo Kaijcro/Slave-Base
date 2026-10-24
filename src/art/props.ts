@@ -343,3 +343,89 @@ export function bushSprite(seed: number) {
   if (flower) for (let i = 0; i < 6; i++) p.put(Math.round((hash(seed, 20 + i) - 0.5) * r * 2.4), -Math.round(hash(seed, 30 + i) * r * 1.6) - 1, col(['#ff6f91', '#ffd84a', '#ffffff'][i % 3]));
   return finishWithShadow(p, r + 1, 2);
 }
+
+/* ---------------- parks and recreation ---------------- */
+function line(p: Pix, x0: number, y0: number, x1: number, y1: number, c: Col) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    p.put(x0, y0, c);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+
+/** A swing set with two swings; the frame runs along u. */
+export function swingSetPix(u: number, v: number): Drawable {
+  const q = Pix.around([proj(u - 1, v - 0.5, 26), proj(u + 1, v + 0.5, 0), proj(u + 1, v - 0.5, 0), proj(u - 1, v + 0.5, 0)], 3);
+  const frame = col('#e8473f'), frameD = col('#b8302a'), rope = col('#6b5a4a'), seat = col('#3f7fe8');
+  const top = (du: number) => proj(u + du, v, 22);
+  for (const du of [-0.9, 0.9]) {
+    const [tx, ty] = top(du);
+    for (const dv of [-0.4, 0.4]) { const [gx, gy] = proj(u + du, v + dv, 0); line(q, tx, ty, gx, gy, dv > 0 ? frame : frameD); }
+  }
+  const [ax, ay] = top(-0.9), [bx, by] = top(0.9);
+  line(q, ax, ay, bx, by, frame); line(q, ax, ay - 1, bx, by - 1, frame);
+  for (const du of [-0.4, 0.4]) {
+    const [rx, ry] = top(du), [sx, sy] = proj(u + du, v, 5);
+    line(q, rx - 2, ry, sx - 2, sy, rope); line(q, rx + 2, ry, sx + 2, sy, rope);
+    q.rect(Math.round(sx) - 3, Math.round(sy), 7, 2, seat);
+  }
+  return placed(q, depthOf(u, v + 0.4));
+}
+
+/** A slide: a little tower with a ladder and a yellow chute running down toward +u. */
+export function slidePix(u: number, v: number): Drawable {
+  const q = Pix.around([proj(u - 0.4, v - 0.4, 28), proj(u + 1.6, v + 0.4, 0), proj(u + 1.6, v - 0.4, 0), proj(u - 0.4, v + 0.4, 0)], 3);
+  const post = col('#3f7fe8'), postD = col('#2c5fb8'), deck = col('#f4c430'), chute = col('#f7d24a'), chuteD = col('#d6a91c');
+  const r: [number, number, number, number] = [u - 0.3, v - 0.3, u + 0.3, v + 0.3];
+  q.box(r, 0, 16, { left: (x, y) => (x < 2 || x > 7.6 ? post : Math.floor(y) % 4 === 0 ? postD : 0), right: (x) => (x < 2 || x > 7.6 ? postD : 0), top: () => deck });
+  q.box(r, 16, 7, { left: (x, y) => (x < 2 || x > 7.6 || y > 5 ? post : 0), right: (x, y) => (x < 2 || x > 7.6 || y > 5 ? postD : 0) });
+  q.quad([u + 0.3, v - 0.22, 16], [0, 0.44, 0], [1.25, 0, -15], (f) => (f.s < 0.15 || f.s > 0.85 ? chuteD : chute));
+  return placed(q, depthOf(u + 1.2, v + 0.3));
+}
+
+/** A basketball hoop on a pole; the backboard faces along u toward `face`. */
+export function hoopPix(u: number, v: number, face: 1 | -1): Drawable {
+  const q = Pix.around([proj(u - 0.6, v - 0.6, 34), proj(u + 0.6, v + 0.6, 0), proj(u + 0.6, v - 0.6, 0), proj(u - 0.6, v + 0.6, 0)], 3);
+  const pole = col('#3a3550'), board = col('#ffffff'), rim = col('#ff6a2a');
+  const [px, py] = proj(u, v);
+  q.rect(Math.round(px), Math.round(py) - 26, 1, 26, pole);
+  q.wall(u + face * 0.15, v - 0.35, u + face * 0.15, v + 0.35, 22, 10, (x, y) => (x < 1 || x > 10 || y < 1 || y > 9 ? pole : (Math.abs(x - 5.6) < 2.2 && y < 5 && y > 1.5 && (x < 4 || x > 7 || y < 2.5 || y > 4) ? rim : board)));
+  const [rx, ry] = proj(u + face * 0.35, v, 23);
+  q.rect(Math.round(rx) - 2, Math.round(ry), 5, 1, rim); q.rect(Math.round(rx) - 1, Math.round(ry) + 1, 3, 2, col('#f1ead8'));
+  return placed(q, depthOf(u, v));
+}
+
+/** A tennis net across the court, running along v. */
+export function netPix(u: number, v0: number, v1: number): Drawable {
+  const q = Pix.around([proj(u, v0, 7), proj(u, v1, 7), proj(u, v0, 0), proj(u, v1, 0)], 2);
+  const mesh = col('#2b2533'), tape = col('#ffffff'), post = col('#3a3550');
+  q.wall(u, v0, u, v1, 0, 6, (x, y) => {
+    const L = (v1 - v0) * 16;
+    if (x < 1 || x > L - 1) return post;
+    if (y > 4.8) return tape;
+    return (Math.floor(x) + Math.floor(y)) % 2 === 0 ? mesh : 0;
+  });
+  return placed(q, depthOf(u, v1) + 0.5, false);
+}
+
+/** A rounded climbing dome made of colorful bars. */
+export function domePix(u: number, v: number): Drawable {
+  const r = 0.55;
+  const q = Pix.around([proj(u - r, v - r, 18), proj(u + r, v + r, 0), proj(u + r, v - r, 0), proj(u - r, v + r, 0)], 3);
+  const cols = [col('#ff86b0'), col('#59c3ff'), col('#f4c430'), col('#7fd8c0')];
+  for (let z = 0; z <= 14; z += 2) {
+    const rr = r * Math.sqrt(1 - (z / 15) ** 2);
+    q.top([u - rr, v - rr, u + rr, v + rr], z, (a, b) => {
+      const d = Math.hypot(a - rr, b - rr);
+      if (d > rr || d < rr - 0.09) return 0;
+      const ang = Math.atan2(b - rr, a - rr);
+      return cols[Math.floor((ang + Math.PI) / (Math.PI / 2)) % 4];
+    });
+  }
+  return placed(q, depthOf(u, v) + 2);
+}

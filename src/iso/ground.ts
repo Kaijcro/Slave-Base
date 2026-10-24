@@ -24,6 +24,8 @@ const C = {
   granite: col('#3a4152'), graniteL: col('#454d60'), cyan: col('#59e3ff'),
   concrete: col('#c9c9c4'), concreteD: col('#b7b7b1'), white: col('#f6f6f2'),
   mint: col('#a6e3cf'), mintD: col('#8fd1bb'),
+  rubber: col('#e0705a'), rubberL: col('#ee8a72'), rubberD: col('#c45a46'),
+  court: col('#3f7cc4'), key: col('#e0773e'), tennis: col('#3f9a64'), tennisOut: col('#5bb07a'),
   flowers: ['#ff6f91', '#ffd84a', '#ffffff', '#b28bff', '#ff9a3c'].map((c) => col(c)),
 };
 
@@ -97,7 +99,8 @@ function block(t: BlockType, a: number, b: number, u: number, v: number, x: numb
     case 'refuge': return refugeYard(a, b, u, v, x, y);
     case 'goose': return gooseYard(a, b, u, v, x, y);
     case 'ai': return aiPlaza(a, b, x, y);
-    case 'lot': return lot(a, b, x, y);
+    case 'playground': return playground(a, b, x, y);
+    case 'courts': return courts(a, b, x, y);
     case 'pond': return pond(a, b, x, y);
   }
 }
@@ -158,12 +161,38 @@ function aiPlaza(a: number, b: number, x: number, y: number): Col {
   return hash(x, y, 13) < 0.05 ? C.graniteL : C.granite;
 }
 
-function lot(a: number, b: number, x: number, y: number): Col {
-  if (a < 2.3 || a > 7.7 || b < 2.3 || b > 7.7) return grass(x, y);
-  // tire tracks
-  if (Math.abs(b - 4.6) < 0.12 || Math.abs(b - 5.4) < 0.12) return C.dirtD;
-  const r = hash(x, y, 14);
-  return r < 0.12 ? C.dirtD : r > 0.9 ? C.dirtL : C.dirt;
+function playground(a: number, b: number, x: number, y: number): Col {
+  // a sandbox, a soft rubber play surface under the swings and slide, and a path through
+  if (Math.hypot(a - 3.9, (b - 6.3) * 1.1) < 1) return Math.hypot(a - 3.9, (b - 6.3) * 1.1) > 0.88 ? C.paverD : hash(x, y, 17) < 0.15 ? C.pathD : C.sand;
+  if (a > 2.7 && a < 7.3 && b > 2.7 && b < 5.3) {
+    if (a < 2.82 || a > 7.18 || b < 2.82 || b > 5.18) return C.paverD;
+    const r = hash(x, y, 18);
+    return r < 0.1 ? C.rubberL : r > 0.93 ? C.rubberD : C.rubber;
+  }
+  if (Math.abs(b - 6.3) < 0.3 && a > 4.9) return hash(x, y, 5) < 0.12 ? C.pathD : C.path;
+  return grass(x, y);
+}
+
+function courts(a: number, b: number, x: number, y: number): Col {
+  // a basketball court and a tennis court side by side
+  if (a > 2.4 && a < 7.6 && b > 2.4 && b < 4.9) {
+    const la = a - 2.4, lb = b - 2.4, L = 5.2, Wd = 2.5;
+    const edge = la < 0.07 || la > L - 0.07 || lb < 0.07 || lb > Wd - 0.07;
+    const mid = Math.abs(la - L / 2) < 0.035, circ = Math.abs(Math.hypot(la - L / 2, lb - Wd / 2) - 0.45) < 0.04;
+    if (edge || mid || circ) return C.white;
+    if ((la < 0.95 || la > L - 0.95) && Math.abs(lb - Wd / 2) < 0.42) return C.key;
+    if (Math.abs(Math.hypot(la < L / 2 ? la : L - la, lb - Wd / 2) - 1.15) < 0.04) return C.white;
+    return C.court;
+  }
+  if (a > 2.4 && a < 7.6 && b > 5.1 && b < 7.6) {
+    const la = a - 2.4, lb = b - 5.1;
+    if (la < 0.35 || la > 4.85 || lb < 0.3 || lb > 2.2) return C.tennisOut;
+    const ia = la - 0.35, ib = lb - 0.3;
+    const line = ia < 0.06 || ia > 4.44 || ib < 0.06 || ib > 1.84 || Math.abs(ib - 0.25) < 0.03 || Math.abs(ib - 1.65) < 0.03 ||
+      (Math.abs(ia - 1.2) < 0.03 || Math.abs(ia - 3.3) < 0.03) && ib > 0.25 && ib < 1.65 || Math.abs(ib - 0.95) < 0.03 && ia > 1.2 && ia < 3.3;
+    return line ? C.white : C.tennis;
+  }
+  return grass(x, y);
 }
 
 function pond(a: number, b: number, x: number, y: number): Col {

@@ -26,8 +26,8 @@ export interface Place {
 }
 
 export const PLACES: Record<PlaceKey, Place> = {
-  refuge: { name: 'Refuge Properties', biz: 'Real estate investing: loft office and garage', door: [15.6, 7.5], gate: [15.6, 8.5], color: '#c8664f', badge: [15.2, 5, 96], rect: [0, 0, 1, 1] },
-  goose:  { name: 'Goose Pop Shop',    biz: 'Dirty soda shop',                             door: [6.7, 15], gate: [8.5, 15],     color: '#ff86b0', badge: [4.7, 15, 92],  rect: [0, 0, 1, 1] },
+  refuge: { name: 'Refuge Properties', biz: 'Real estate investing: loft office and garage', door: [25.6, 7.5], gate: [25.6, 8.5], color: '#c8664f', badge: [25.2, 5, 96], rect: [0, 0, 1, 1] },
+  goose:  { name: 'Goose Pop Shop',    biz: 'Dirty soda shop',                             door: [26.7, 25], gate: [28.5, 25],   color: '#ff86b0', badge: [24.7, 25, 92],  rect: [0, 0, 1, 1] },
   ai:     { name: 'AI Enterprizes',    biz: 'Building new income-generating AI businesses', door: [7.6, 25], gate: [8.5, 25],     color: '#5fb4ff', badge: [5, 25, 300],   rect: [0, 0, 1, 1] },
   plaza:  { name: 'Town Square',       biz: 'Where agents wait and take breaks',           door: null,       gate: [15, 18.5],    color: '#e3c08a', badge: null,           rect: [0, 0, 1, 1] },
   hall:   { name: 'Town Hall',         biz: 'Daily briefs and review',                     door: [15, 15.1], gate: [15, 18.5],    color: '#86e0bd', badge: [15, 13.5, 132], rect: [0, 0, 1, 1] },

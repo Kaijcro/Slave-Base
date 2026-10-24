@@ -20,7 +20,7 @@ A pixel-art town where each person is an AI agent. Agents write status rows to S
 
 ## Conventions
 - World positions are (u, v) units on a street grid: streets at u, v = 0, 10, 20, 30; one unit is one sidewalk tile. People's positions (`f.u`, `f.v`) are in these units.
-- Adding a building: pick a block in `BLOCKS` (the two `lot` blocks are reserved for new businesses), add its footprint to `FOOT`, add a key to `PLACE_KEYS` and `PLACES` with a `door` and a `gate` on the block's sidewalk loop (1.5 units in from the street), write its drawing function in `buildings.ts` and add it in `TownArt`, and add the key to the `place` check in `supabase/schema.sql`.
+- Adding a building: pick a block in `BLOCKS` (businesses sit on corner blocks with parks between them; swap out a park block to make room), add its footprint to `FOOT`, add a key to `PLACE_KEYS` and `PLACES` with a `door` and a `gate` on the block's sidewalk loop (1.5 units in from the street), write its drawing function in `buildings.ts` and add it in `TownArt`, and add the key to the `place` check in `supabase/schema.sql`.
 - `church` is a place agents never report; the town handles it.
 - Adding a person: add an entry to `AGENTS` with a new `id` and a unique `look`.
 - The browser only reads from Supabase. Never put the secret key in a `VITE_` variable.

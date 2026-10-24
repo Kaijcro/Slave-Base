@@ -265,7 +265,7 @@ export function refuge(): Building {
   });
   void woodL;
   // rooftop: two AC units
-  for (const [au, av] of [[13.4, 3.6], [14.6, 3.6]]) {
+  for (const [au, av] of [[u0 + 1, v0 + 0.8], [u0 + 2.2, v0 + 0.8]]) {
     p.box([au, av, au + 0.7, av + 0.6], TOP, 7, { left: (x, y) => (Math.floor(y) % 2 ? concrete : shade(concrete, 0.9)), right: () => shade(concrete, 0.8), top: () => col('#e2e2dc') });
   }
   // cars in the bays, nose out
@@ -299,7 +299,7 @@ export function refuge(): Building {
  * ==================================================================== */
 export function goose(): Building {
   const [u0, v0, u1, v1] = FOOT.goose; // [3, 13, 6.4, 17]
-  const p = pixFor([u0, v0, 8.2, v1], 96, 6);
+  const p = pixFor([u0, v0, u0 + 5.2, v1], 96, 6);
   const cream = col('#f7ecd4'), creamL = col('#fff6e3'), creamR = col('#e6d8bc'), line = col('#e3d4b6'), lineR = col('#d0c09f');
   const honey = col('#c98a3a'), honeyD = col('#9c6524'), glass = col('#a9d6ea'), glassD = col('#7fb7d0'), glassW = col('#ffe3a6');
   const mint = col('#7fd8c0'), mintD = col('#4fb39b'), pink = col('#ff86b0'), pinkD = col('#d9608c'), yellow = col('#f7c934'), white = col('#ffffff');
@@ -357,7 +357,7 @@ export function goose(): Building {
     return Math.floor(f.es0 / 4) % 2 ? yellow : white;
   });
   // rooftop: giant soda cup at the back, the goose on the front corner
-  const cu = 3.9, cv = 14.1;
+  const cu = u0 + 0.9, cv = v0 + 1.1;
   for (let z = FASCIA; z < FASCIA + 30; z++) {
     const k = (z - FASCIA) / 30, r = 0.32 + k * 0.14;
     const band = z > FASCIA + 9 && z < FASCIA + 15;
@@ -373,7 +373,7 @@ export function goose(): Building {
   p.top([cu - 0.5, cv - 0.5, cu + 0.5, cv + 0.5], FASCIA + 30, (a, b) => (Math.hypot(a - 0.5, b - 0.5) < 0.5 ? (Math.hypot(a - 0.5, b - 0.5) < 0.42 ? white : col('#e8e0ec')) : 0));
   const [sx, sy] = proj(cu + 0.1, cv, FASCIA + 30);
   for (let i = 0; i < 14; i++) p.put(Math.round(sx) + Math.floor(i / 3), Math.round(sy) - i, i % 4 < 2 ? pink : white); // straw
-  const [gx0, gy0] = proj(5.6, 16.3, FASCIA);
+  const [gx0, gy0] = proj(u0 + 2.6, v0 + 3.3, FASCIA);
   const gx = Math.round(gx0) - 6, gy = Math.round(gy0) - 15;
   const G = (dx: number, dy: number, w: number, h: number, c: Col) => p.rect(gx + dx, gy + dy, w, h, c);
   G(-1, 6, 2, 2, white); G(0, 6, 12, 5, white); G(1, 5, 10, 1, white); G(1, 11, 10, 1, col('#e3dfe8'));
@@ -382,7 +382,7 @@ export function goose(): Building {
   G(4, 12, 1, 3, col('#ff9a2a')); G(7, 12, 1, 3, col('#ff9a2a'));
   void mix;
 
-  const balloon = proj(7.9, 14.35, 0);
+  const balloon = proj(u0 + 4.9, v0 + 1.35, 0);
   const straw = [Math.round(sx) + 4, Math.round(sy) - 14];
   gooseEmit = straw as [number, number];
   return new Building('goose', p, [u0, v0, u1 + 0.3, v1], (b, t, busy) => {

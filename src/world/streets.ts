@@ -15,19 +15,22 @@ export const TOWN: Rect = [-2, -2, 32, 32];
 export const THROUGH_U = 20; // the north-south road that leaves town (constant u)
 export const THROUGH_V = 20; // the east-west road that leaves town (constant v)
 
-export type BlockType = 'park' | 'refuge' | 'palms' | 'goose' | 'square' | 'lot' | 'ai' | 'pond';
+export type BlockType = 'park' | 'refuge' | 'palms' | 'goose' | 'square' | 'playground' | 'courts' | 'ai' | 'pond';
 
-/** What is on each block, keyed by "column,row" (u-block, v-block). */
+/**
+ * What is on each block, keyed by "column,row" (u-block, v-block).
+ * The businesses sit on three corners with Town Hall in the middle, so every building has parks around it.
+ */
 export const BLOCKS: Record<string, BlockType> = {
-  '0,0': 'park', '1,0': 'refuge', '2,0': 'palms',
-  '0,1': 'goose', '1,1': 'square', '2,1': 'lot',
-  '0,2': 'ai', '1,2': 'lot', '2,2': 'pond',
+  '0,0': 'park', '1,0': 'palms', '2,0': 'refuge',
+  '0,1': 'playground', '1,1': 'square', '2,1': 'courts',
+  '0,2': 'ai', '1,2': 'pond', '2,2': 'goose',
 };
 
 /** Building footprints, in world units. */
 export const FOOT = {
-  refuge: [12.4, 2.8, 18, 7.2] as Rect,
-  goose: [3, 13, 6.4, 17] as Rect,
+  refuge: [22.4, 2.8, 28, 7.2] as Rect,
+  goose: [23, 23, 26.4, 27] as Rect,
   ai: [2.7, 22.7, 7.3, 27.3] as Rect,
   hall: [12.4, 12.3, 17.6, 14.8] as Rect,
   church: [11, -15, 15, -8.2] as Rect,

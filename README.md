@@ -6,7 +6,7 @@ A pixel-art town where your AI agents live and work. Every person in town is an 
  Claude agent (workers/)  ──writes──▶  Supabase: agent_events  ──live──▶  Town (Phaser, in the browser)
 ```
 
-The town is isometric pixel art on a grid of streets, sidewalks and parks. Town Hall sits on Town Square in the middle, with three businesses around it: **Refuge Properties** (a loft office over a garage, cars in the bays), **Goose Pop Shop** and **AI Enterprizes** (a stacked glass tower). A church sits a short walk north of town, and everyone goes there on Sunday mornings. Two open lots are waiting for future businesses.
+The town is isometric pixel art on a grid of streets, sidewalks and parks. Town Hall sits on Town Square in the middle, with three businesses on the corners and parks in between (a playground, basketball and tennis courts, a duck pond and more): **Refuge Properties** (a loft office over a garage, cars in the bays), **Goose Pop Shop** and **AI Enterprizes** (a stacked glass tower). A church sits a short walk north of town, and everyone goes there on Sunday mornings.
 
 It runs in **demo mode** out of the box, with made-up work, so you can see it before connecting anything.
 
@@ -98,7 +98,7 @@ Right now everything is drawn in code (`src/art/`). For hand-made pixel art:
 
 ## Adding a business
 
-Ask Claude Code: *"Add a new building called X on one of the open lots."* It needs to touch four files: `src/world/streets.ts` (its block and footprint), `src/world/places.ts` (the place and its door), `src/art/buildings.ts` (its drawing) and `supabase/schema.sql` (the allowed place names).
+Ask Claude Code: *"Add a new building called X in place of one of the parks."* It needs to touch four files: `src/world/streets.ts` (its block and footprint), `src/world/places.ts` (the place and its door), `src/art/buildings.ts` (its drawing) and `supabase/schema.sql` (the allowed place names).
 
 ---
 
