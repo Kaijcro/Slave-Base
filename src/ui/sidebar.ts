@@ -67,6 +67,8 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
     chip.className = 'chip';
     b.append(mid, chip);
     b.addEventListener('click', () => store.select({ type: 'agent', id: f.id }));
+    b.addEventListener('dblclick', () => { store.select({ type: 'agent', id: f.id }); store.setFollow(f.id); });
+    b.title = 'Double-click to follow on the map';
     li.appendChild(b);
     roster.appendChild(li);
     rows[f.id] = { b, task: mid.querySelector('.rtask')!, chip };
@@ -112,12 +114,13 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
         focus.appendChild(portrait(f.look, 6, true));
         const d = document.createElement('div');
         d.style.minWidth = '0';
-        d.innerHTML = '<h2></h2><p class="role"></p><span class="status"><i class="dot"></i><span class="sl"></span></span><dl class="kv"><dt>Now</dt><dd class="now"></dd><dt>Where</dt><dd class="where"></dd><dt>Last output</dt><dd class="out"></dd><dt>Tasks done</dt><dd class="dn"></dd></dl><p class="bio"></p><p class="aid"></p>';
+        d.innerHTML = '<h2></h2><p class="role"></p><span class="status"><i class="dot"></i><span class="sl"></span></span><dl class="kv"><dt>Now</dt><dd class="now"></dd><dt>Where</dt><dd class="where"></dd><dt>Last output</dt><dd class="out"></dd><dt>Tasks done</dt><dd class="dn"></dd></dl><p class="bio"></p><p class="aid"></p><button type="button" class="followbtn"></button>';
         d.querySelector('h2')!.textContent = f.name;
         d.querySelector('.role')!.textContent = `${f.role} · ${f.home ? PLACES[f.home].name : 'All buildings'}`;
         d.querySelector('.bio')!.textContent = f.bio;
         d.querySelector('.aid')!.innerHTML = `Agent ID: <code></code>`;
         d.querySelector('.aid code')!.textContent = f.id;
+        d.querySelector('.followbtn')!.addEventListener('click', () => store.setFollow(store.follow === f.id ? null : f.id));
         focus.appendChild(d);
       }
       const st = STATUS[f.status];
@@ -127,6 +130,9 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
       focus.querySelector('.where')!.textContent = where(f);
       focus.querySelector('.out')!.textContent = f.lastOut;
       focus.querySelector('.dn')!.textContent = String(f.done);
+      const fb = focus.querySelector('.followbtn')!;
+      fb.textContent = store.follow === f.id ? 'Following on map' : 'Follow on map';
+      fb.setAttribute('aria-pressed', String(store.follow === f.id));
     } else {
       const k = sel.key, p = PLACES[k];
       if (focusKey !== 'p:' + k) {
@@ -180,6 +186,9 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
     const st = statusText();
     if (st) $('live').textContent = st;
     renderFocus();
+    const chip = $('followchip'), fol = store.follow ? town.byId.get(store.follow) : null;
+    chip.hidden = !fol;
+    if (fol) chip.querySelector('b')!.textContent = first(fol);
   }
 
   store.listeners.add(() => { focusKey = ''; render(); });

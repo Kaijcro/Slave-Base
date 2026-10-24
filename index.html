@@ -31,7 +31,15 @@
 
       <div class="layout">
         <section class="stage" aria-label="Town map">
-          <div id="stage-canvas"></div>
+          <div class="mapwrap">
+            <div id="stage-canvas"></div>
+            <div class="zoombar" role="group" aria-label="Map zoom">
+              <button type="button" data-z="in" aria-label="Zoom in" title="Zoom in (or scroll)">+</button>
+              <button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" data-z="reset" title="Show the whole town">Fit</button>
+            </div>
+            <div class="followchip" id="followchip" hidden><span>Following <b></b></span><button type="button">Stop</button></div>
+          </div>
           <div class="legend" id="legend"></div>
         </section>
         <aside>

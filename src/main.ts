@@ -45,6 +45,16 @@ const game = new Phaser.Game({
 
 mountSidebar(town, () => game.canvas, () => source.status);
 
+// Map zoom buttons
+document.querySelectorAll<HTMLButtonElement>('.zoombar button').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (b.dataset.z === 'in') store.cam.zoomBy(1.4);
+    else if (b.dataset.z === 'out') store.cam.zoomBy(1 / 1.4);
+    else store.cam.reset();
+  }),
+);
+document.querySelector('#followchip button')?.addEventListener('click', () => store.setFollow(null));
+
 // Handy for debugging in the browser console: window.game
 (window as unknown as { game: Phaser.Game }).game = game;
 

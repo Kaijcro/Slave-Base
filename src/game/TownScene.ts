@@ -26,6 +26,11 @@ export class TownScene extends Phaser.Scene {
   private sprites = new Map<string, HTMLCanvasElement>();
   private t = 0;
   private hoverPlace: PlaceKey | null = null;
+  private worldImg!: Phaser.GameObjects.Image;
+  /** Camera: top-left corner of the view in town pixels, and zoom (1 = whole town). */
+  private cam = { x: 0, y: 0, z: 1 };
+  private drag: { x: number; y: number; cx: number; cy: number; moved: boolean } | null = null;
+  private pinch: number | null = null;
 
   constructor(private town: Town, private source: AgentSource) {
     super('town');
@@ -42,7 +47,7 @@ export class TownScene extends Phaser.Scene {
     PLACES.plaza.rect = [px0 - 10, py0 - 90, px1 - px0 + 20, 110];
 
     this.worldTex = this.textures.createCanvas('world', W, H)!;
-    this.add.image(0, 0, 'world').setOrigin(0).setScale(S);
+    this.worldImg = this.add.image(0, 0, 'world').setOrigin(0).setScale(S);
     this.topTex = this.textures.createCanvas('top', W * S, H * S)!;
     this.add.image(0, 0, 'top').setOrigin(0);
 
@@ -57,18 +62,87 @@ export class TownScene extends Phaser.Scene {
       this.sprites.set(`${f.id}-${dir}-${n}`, c);
     }
 
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.hover(p.x / S, p.y / S));
+    // Zoom and pan: scroll or pinch to zoom, drag to move around, click to select.
+    this.input.addPointer(1);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.drag = { x: p.x, y: p.y, cx: this.cam.x, cy: this.cam.y, moved: false };
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const p1 = this.input.pointer1, p2 = this.input.pointer2;
+      if (p1.isDown && p2.isDown) {
+        // two fingers: pinch to zoom around their midpoint
+        const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        if (this.pinch) this.zoomAt(d / this.pinch, (p1.x + p2.x) / 2 / S, (p1.y + p2.y) / 2 / S);
+        this.pinch = d;
+        if (this.drag) this.drag.moved = true;
+        return;
+      }
+      this.pinch = null;
+      if (this.drag && p.isDown) {
+        const dx = p.x - this.drag.x, dy = p.y - this.drag.y;
+        if (!this.drag.moved && Math.hypot(dx, dy) > 8) { this.drag.moved = true; store.setFollow(null); }
+        if (this.drag.moved) {
+          this.cam.x = this.drag.cx - dx / S / this.cam.z;
+          this.cam.y = this.drag.cy - dy / S / this.cam.z;
+          this.clampCam();
+          this.input.setDefaultCursor('grabbing');
+          return;
+        }
+      }
+      this.hover(p.x / S, p.y / S);
+    });
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      const wasDrag = this.drag?.moved;
+      this.drag = null; this.pinch = null;
+      if (wasDrag) { this.input.setDefaultCursor('default'); return; }
       const hit = this.pick(p.x / S, p.y / S);
       if (hit?.type === 'agent') store.select({ type: 'agent', id: hit.id });
       else if (hit?.type === 'place') store.select({ type: 'place', key: hit.key });
     });
+    this.game.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const c = this.game.canvas, k = W / c.clientWidth;
+      this.zoomAt(Math.exp(-e.deltaY * 0.0018), e.offsetX * k, e.offsetY * k);
+    }, { passive: false });
+    store.cam.zoomBy = (f) => this.zoomAt(f, W / 2, H / 2);
+    store.cam.reset = () => { store.setFollow(null); this.cam = { x: 0, y: 0, z: 1 }; store.cam.zoom = 1; };
+  }
+
+  /* ---------------- camera ---------------- */
+  /** Zoom by factor f, keeping the town point under screen position (sx, sy) in place. */
+  private zoomAt(f: number, sx: number, sy: number) {
+    const z = clamp(this.cam.z * f, 1, 3.5);
+    const wx = this.cam.x + sx / this.cam.z, wy = this.cam.y + sy / this.cam.z;
+    this.cam.z = z;
+    if (!store.follow) { this.cam.x = wx - sx / z; this.cam.y = wy - sy / z; }
+    this.clampCam();
+    store.cam.zoom = z;
+  }
+  private clampCam() {
+    const c = this.cam;
+    c.x = clamp(c.x, 0, W - W / c.z);
+    c.y = clamp(c.y, 0, H - H / c.z);
+  }
+  /** Screen position (in un-zoomed town pixels) of a town pixel. */
+  private toView(x: number, y: number): [number, number] { return [(x - this.cam.x) * this.cam.z, (y - this.cam.y) * this.cam.z]; }
+  private followCam(realDt: number) {
+    const f = store.follow ? this.town.byId.get(store.follow) : null;
+    if (!f) return;
+    if (this.cam.z < 2) this.cam.z = Math.min(2, this.cam.z + realDt * 3);
+    store.cam.zoom = this.cam.z;
+    const [u, v] = f.state === 'inside' && PLACES[f.at].door ? PLACES[f.at].door! : [f.u, f.v];
+    const [x, y] = proj(u, v, 20);
+    const tx = x - W / 2 / this.cam.z, ty = y - H / 2 / this.cam.z;
+    const k = Math.min(1, realDt * 4);
+    this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k;
+    this.clampCam();
   }
 
   /* ---------------- picking ---------------- */
   private feet(f: Figure) { const [x, y] = proj(f.u, f.v); return [Math.round(x), Math.round(y)]; }
 
-  private pick(x: number, y: number): { type: 'agent'; id: string } | { type: 'place'; key: PlaceKey } | null {
+  private pick(vx: number, vy: number): { type: 'agent'; id: string } | { type: 'place'; key: PlaceKey } | null {
+    const x = this.cam.x + vx / this.cam.z, y = this.cam.y + vy / this.cam.z;
     const ps = PERSON_SCALE;
     let best: Figure | null = null;
     for (const f of this.town.figs) {
@@ -104,6 +178,8 @@ export class TownScene extends Phaser.Scene {
       this.t += dt;
     }
     this.town.update(dt, dt > 0 ? realDt : 0);
+    this.followCam(realDt);
+    this.worldImg.setScale(S * this.cam.z).setPosition(-this.cam.x * S * this.cam.z, -this.cam.y * S * this.cam.z);
     if (dt > 0) this.art.update(dt, this.town.occ, this.town.figs, this.town.bell);
     const mins = this.town.mins;
 
@@ -157,6 +233,8 @@ export class TownScene extends Phaser.Scene {
     const outlined = new Set<PlaceKey>();
     if (sel.type === 'place') outlined.add(sel.key);
     if (this.hoverPlace) outlined.add(this.hoverPlace);
+    const z = this.cam.z;
+    g.setTransform(S * z, 0, 0, S * z, -this.cam.x * S * z, -this.cam.y * S * z);
     for (const k of outlined) {
       const pu = 0.5 + 0.5 * Math.sin(this.t * 4);
       const b = this.art.buildings[k];
@@ -169,12 +247,13 @@ export class TownScene extends Phaser.Scene {
       }
       g.globalAlpha = 1;
     }
+    g.setTransform(S, 0, 0, S, 0, 0);
     g.font = `600 6px ${PF}`;
     g.textBaseline = 'top';
     for (const k of PLACE_KEYS) {
       const p = PLACES[k];
       if (!p.badge) continue;
-      const [bx, by] = proj(p.badge[0], p.badge[1], p.badge[2]);
+      const [bx, by] = this.toView(...proj(p.badge[0], p.badge[1], p.badge[2]));
       const pb = this.town.placeBubble[k];
       if (pb) bubble(g, pb.text, bx, by - 12);
       const n = this.town.occ[k];
@@ -189,8 +268,8 @@ export class TownScene extends Phaser.Scene {
     }
     for (const f of this.town.figs) {
       if (f.state === 'inside') continue;
-      const [fx, fy] = this.feet(f);
-      const top = fy - Math.round((21 + (f.look.tall ? 1 : 0)) * PERSON_SCALE);
+      const [fx, fy] = this.toView(...this.feet(f) as [number, number]);
+      const top = fy - Math.round((21 + (f.look.tall ? 1 : 0)) * PERSON_SCALE * z);
       if (f.bubbleT > 0) bubble(g, f.bubble, fx, top);
       else if ((sel.type === 'agent' && sel.id === f.id) || store.hover === f.id) bubble(g, firstName(f), fx, top, '#86e0bd', '#241b2e');
     }

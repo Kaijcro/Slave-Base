@@ -12,7 +12,7 @@ A pixel-art town where each person is an AI agent. Agents write status rows to S
 - `src/data/types.ts`: the `AgentEvent` shape. This is the contract between agents and the town; keep it in sync with `supabase/schema.sql`.
 - `src/game/Town.ts`: movement and state. It reacts to events, plus one rule of its own: every Sunday at 9:30 (see `CHURCH` in `config.ts`) everyone walks to church, then goes back to what they were doing after 11:00.
 - `src/data/sim.ts`: demo mode, which fakes events. `src/data/supabase.ts`: live mode.
-- `src/game/TownScene.ts`: the Phaser scene. A 1040 x 640 world canvas (ground, then buildings, trees, cars and people sorted by depth, then night lighting) scaled 2x, plus a full-resolution label canvas.
+- `src/game/TownScene.ts`: the Phaser scene. A 1040 x 640 world canvas (ground, then buildings, trees, cars and people sorted by depth, then night lighting) scaled 2x, plus a full-resolution label canvas. A camera (`cam`: scroll/pinch to zoom 1x to 3.5x, drag to pan, `store.follow` to track a person) moves the world image; picking converts view coordinates back to town pixels.
 - `src/iso/`: the isometric engine. `iso.ts` projects world (u, v, z) to screen; `raster.ts` draws flat surfaces pixel by pixel through "shader" functions; `ground.ts` paints streets, sidewalks and parks.
 - `src/art/`: all art is drawn in code for now: `buildings.ts` (one function per building), `props.ts` (trees, cars, lamps...), `world.ts` (places everything, cars, particles, night), `human.ts` (people).
 - `src/world/`: places (`places.ts`), the street grid, building footprints and walking network (`streets.ts`), townsfolk (`agents.ts`), demo-only tasks.

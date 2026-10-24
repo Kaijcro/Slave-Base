@@ -66,3 +66,16 @@ aside { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .feed li.minor { opacity: .72; font-size: 12.5px; }
 .feed time { font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
 .feed .who { font-weight: 700; }
+
+/* Map zoom controls */
+.mapwrap { position: relative; }
+.zoombar { position: absolute; top: 8px; right: 8px; display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.zoombar button { font-family: var(--display); font-size: 16px; min-width: 34px; height: 32px; background: var(--panel); color: var(--text); border: 0; cursor: pointer; padding: 0 8px; }
+.zoombar button + button { border-left: 1px solid var(--line); }
+.zoombar button:hover { background: var(--panel2); }
+.followchip { position: absolute; top: 8px; left: 8px; display: flex; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 4px 4px 10px; font-size: 13px; color: var(--muted); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.followchip[hidden] { display: none; }
+.followchip b { color: var(--text); }
+.followchip button, .followbtn { font: inherit; font-size: 13px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.followbtn { margin-top: 10px; }
+.followbtn[aria-pressed="true"] { background: var(--pink); color: var(--onpink); border-color: transparent; }
