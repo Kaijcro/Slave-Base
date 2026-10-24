@@ -23,9 +23,16 @@ document.querySelectorAll<HTMLButtonElement>('.speed button').forEach((b) =>
   }),
 );
 
+// The town's signs are drawn with the pixel font, so wait for it (briefly) before building the art.
+const fontReady = Promise.race([
+  document.fonts?.load('600 10px "Pixelify Sans"') ?? Promise.resolve(),
+  new Promise((r) => setTimeout(r, 1500)),
+]).catch(() => undefined);
+await fontReady;
+
 const game = new Phaser.Game({
-  // Canvas renderer: the town repaints its scenery every frame, and Canvas does that at 60 fps
-  // where WebGL stalls re-uploading textures. Switch to Phaser.AUTO once the art is image tiles.
+  // Canvas renderer: the town repaints every frame from canvases, which Canvas does at 60 fps
+  // where WebGL would re-upload textures each frame.
   type: Phaser.CANVAS,
   parent: 'stage-canvas',
   width: W * S,
@@ -41,9 +48,5 @@ mountSidebar(town, () => game.canvas, () => source.status);
 // Handy for debugging in the browser console: window.game
 (window as unknown as { game: Phaser.Game }).game = game;
 
-// Wait for the pixel font so signs render correctly, then start the agents.
-const go = () => Promise.resolve(source.start((e, o) => town.apply(e, o))).catch((err) => console.error(err));
-let started = false;
-const once = () => { if (!started) { started = true; go(); } };
-document.fonts?.load('600 10px "Pixelify Sans"').then(once, once);
-setTimeout(once, 1500);
+// Start the agents.
+Promise.resolve(source.start((e, o) => town.apply(e, o))).catch((err) => console.error(err));

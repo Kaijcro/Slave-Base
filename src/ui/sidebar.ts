@@ -12,6 +12,7 @@ const STATUS: Record<Figure['status'], { label: string; cls: string; color: stri
   walking: { label: 'Walking', cls: 'walk', color: 'var(--gold)' },
   break: { label: 'On break', cls: 'idle', color: 'var(--pink)' },
   waiting: { label: 'Waiting', cls: 'wait', color: 'var(--muted)' },
+  church: { label: 'At church', cls: 'idle', color: 'var(--gold)' },
 };
 
 function line(f: Figure) {
@@ -20,11 +21,14 @@ function line(f: Figure) {
     case 'done': return 'Finished: ' + f.lastOut;
     case 'walking': return `Walking to ${PLACES[f.target ?? f.at].name}`;
     case 'break': return 'On break at Town Square';
+    case 'church': return 'At the Sunday service';
     default: return 'Waiting for a task in Town Square';
   }
 }
 const where = (f: Figure) => (f.state === 'walk' ? 'On the street' : PLACES[f.at].name);
 const first = (f: Figure) => f.name.split(' ')[0];
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function fmtTime(m: number) {
   m = ((m % 1440) + 1440) % 1440;
@@ -170,7 +174,7 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
       r.b.setAttribute('aria-current', String(store.sel.type === 'agent' && store.sel.id === f.id));
     }
     for (const [k, b] of Object.entries(legBtns)) b.setAttribute('aria-current', String(store.sel.type === 'place' && store.sel.key === k));
-    $('clock').textContent = fmtTime(town.mins);
+    $('clock').textContent = `${DAYS[town.weekday()]} ${fmtTime(town.mins)}`;
     $('kWork').textContent = String(town.workingCount());
     $('kDone').textContent = String(town.totalDone);
     const st = statusText();
