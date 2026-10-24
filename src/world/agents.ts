@@ -1,4 +1,5 @@
 import type { Look } from '../art/human';
+import type { SpriteSheet } from '../art/sprites';
 import type { PlaceKey } from './places';
 
 /**
@@ -15,7 +16,10 @@ export interface AgentDef {
   speed: number;
   tag: string;
   bio: string;
+  /** How they are drawn in code; also the fallback if their sprite image is missing. */
   look: Look;
+  /** Optional sprite sheet image that replaces the drawn look (see src/art/sprites.ts). */
+  sprite?: SpriteSheet;
 }
 
 export const AGENTS: AgentDef[] = [
@@ -58,5 +62,11 @@ export const AGENTS: AgentDef[] = [
     id: 'ines', name: 'Inês Duarte', role: 'Chief of staff', home: 'hall', speed: 1, tag: '#86e0bd',
     bio: 'Reviews what every agent produces and writes the daily brief.',
     look: { skin: '#d9a27a', hair: '#dcd9e6', style: 'bob', shirt: '#c23b4a', pattern: 'coat', accent: '#8c2532', pants: '#2b2540', legs: 'pants', shoes: '#1a1210', earrings: '#f6c560' },
+  },
+  {
+    id: 'governor', name: 'Governor Hale', role: 'Governor', home: 'hall', speed: 0.9, tag: '#f6c560',
+    bio: 'Runs the town: sets the priorities each morning and signs off on the big decisions.',
+    look: { skin: '#e8b48a', hair: '#c9934f', style: 'swoop', shirt: '#26355e', pattern: 'jacket', accent: '#9fb4dc', bow: '#a8322d', pants: '#26355e', legs: 'pants', shoes: '#5a2e1c', tall: true },
+    sprite: { src: '/sprites/governor.png', cell: 48, frames: 6, idle: 1, feetY: 44, headY: 2 },
   },
 ];

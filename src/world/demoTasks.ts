@@ -5,6 +5,11 @@ export interface DemoTask { t: string; o: () => string }
 
 /** What each person does at their home building. */
 export const AGENT_TASKS: Record<string, DemoTask[]> = {
+  governor: [
+    { t: 'Setting this week’s priorities', o: () => 'Priorities posted: outreach, Goose Pop promo, one new AI idea' },
+    { t: 'Signing off on a deal', o: () => `Approved: ${ri(12, 36)}-unit acquisition moves to due diligence` },
+    { t: 'Reviewing the daily brief', o: () => `${ri(3, 8)} items approved, ${ri(1, 3)} sent back` },
+  ],
   dex: [
     { t: 'Pulling new lis pendens, Palm Beach County', o: () => `${ri(9, 27)} new foreclosure filings found` },
     { t: 'Writing outreach letter, version 3', o: () => 'Letter draft sent for review' },

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import './styles.css';
 import { W, H, S } from './config';
 import { AGENTS } from './world/agents';
+import { loadSprites } from './art/sprites';
 import { Town } from './game/Town';
 import { TownScene } from './game/TownScene';
 import { pickSource } from './data/source';
@@ -29,6 +30,8 @@ const fontReady = Promise.race([
   new Promise((r) => setTimeout(r, 1500)),
 ]).catch(() => undefined);
 await fontReady;
+// Load any sprite sheet images before the town is drawn.
+await loadSprites(AGENTS);
 
 const game = new Phaser.Game({
   // Canvas renderer: the town repaints every frame from canvases, which Canvas does at 60 fps

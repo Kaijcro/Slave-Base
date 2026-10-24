@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { W, H, S, PF, PERSON_SCALE } from '../config';
 import { drawHuman, type Dir } from '../art/human';
+import { spriteFor } from '../art/sprites';
 import { TownArt } from '../art/world';
 import { painter, clamp } from '../art/pixel';
 import { proj, unproj, depthOf, inRect } from '../iso/iso';
@@ -138,6 +139,24 @@ export class TownScene extends Phaser.Scene {
     this.clampCam();
   }
 
+  /* ---------------- people ---------------- */
+  /** The image to draw for a person this frame, and where it goes relative to their feet. */
+  private frameFor(f: Figure, moving: boolean): { c: HTMLCanvasElement; ox: number; oy: number } {
+    const sp = spriteFor(f.id);
+    if (sp) {
+      const s = sp.sheet;
+      const i = moving ? Math.floor(f.dist / 0.22) % s.frames : s.idle;
+      return { c: (f.dir === 'left' ? sp.left : sp.right)[i], ox: -s.cell / 2, oy: -s.feetY };
+    }
+    const n = moving ? 1 + (Math.floor(f.dist / 0.32) % 2) : 0;
+    return { c: this.sprites.get(`${f.id}-${f.dir}-${n}`)!, ox: -(SPR_W * PERSON_SCALE) / 2, oy: -FEET_Y * PERSON_SCALE };
+  }
+  /** How tall a person stands, in town pixels (for name tags and clicking). */
+  private heightOf(f: Figure) {
+    const sp = spriteFor(f.id);
+    return sp ? sp.sheet.feetY - sp.sheet.headY : (21 + (f.look.tall ? 1 : 0)) * PERSON_SCALE;
+  }
+
   /* ---------------- picking ---------------- */
   private feet(f: Figure) { const [x, y] = proj(f.u, f.v); return [Math.round(x), Math.round(y)]; }
 
@@ -148,7 +167,7 @@ export class TownScene extends Phaser.Scene {
     for (const f of this.town.figs) {
       if (f.state === 'inside') continue;
       const [fx, fy] = this.feet(f);
-      if (x >= fx - 5 * ps && x <= fx + 5 * ps && y >= fy - 21 * ps && y <= fy + 2) if (!best || fy > this.feet(best)[1]) best = f;
+      if (x >= fx - 5 * ps && x <= fx + 5 * ps && y >= fy - this.heightOf(f) && y <= fy + 2) if (!best || fy > this.feet(best)[1]) best = f;
     }
     if (best) return { type: 'agent', id: best.id };
     // buildings, front-most first
@@ -195,7 +214,7 @@ export class TownScene extends Phaser.Scene {
       if (f.state === 'inside') continue;
       const [fx, fy] = this.feet(f);
       const moving = f.state === 'walk' || (f.state === 'idle' && !!f.wp);
-      const spr = this.sprites.get(`${f.id}-${f.dir}-${moving ? 1 + f.frame : 0}`)!;
+      const spr = this.frameFor(f, moving);
       const chosen = sel.type === 'agent' && sel.id === f.id;
       items.push({
         depth: depthOf(f.u, f.v) + 0.5,
@@ -206,7 +225,7 @@ export class TownScene extends Phaser.Scene {
             gg.lineWidth = 1;
             gg.beginPath(); gg.ellipse(fx + 0.5, fy, 9 + pu, 4 + pu * 0.5, 0, 0, Math.PI * 2); gg.stroke();
           }
-          gg.drawImage(spr, fx - (SPR_W * PERSON_SCALE) / 2, fy - FEET_Y * PERSON_SCALE);
+          gg.drawImage(spr.c, fx + spr.ox, fy + spr.oy);
         },
       });
     }
@@ -269,7 +288,7 @@ export class TownScene extends Phaser.Scene {
     for (const f of this.town.figs) {
       if (f.state === 'inside') continue;
       const [fx, fy] = this.toView(...this.feet(f) as [number, number]);
-      const top = fy - Math.round((21 + (f.look.tall ? 1 : 0)) * PERSON_SCALE * z);
+      const top = fy - Math.round(this.heightOf(f) * z);
       if (f.bubbleT > 0) bubble(g, f.bubble, fx, top);
       else if ((sel.type === 'agent' && sel.id === f.id) || store.hover === f.id) bubble(g, firstName(f), fx, top, '#86e0bd', '#241b2e');
     }

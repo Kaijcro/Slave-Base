@@ -1,5 +1,6 @@
 import { S } from '../config';
 import { drawHuman, type Look } from '../art/human';
+import { spriteFor } from '../art/sprites';
 import { PLACES, type PlaceKey } from '../world/places';
 import type { Town, Figure, FeedItem } from '../game/Town';
 import { store } from './store';
@@ -39,12 +40,22 @@ export function fmtTime(m: number) {
   return `${h}:${String(mm).padStart(2, '0')} ${ap}`;
 }
 
-function portrait(L: Look, scale: number, full: boolean) {
+function portrait(L: Look, scale: number, full: boolean, id?: string) {
   const w = 12, h = full ? 24 : 13;
   const c = document.createElement('canvas');
   c.width = w * scale; c.height = h * scale;
   const g = c.getContext('2d')!;
   g.imageSmoothingEnabled = false;
+  const sp = id ? spriteFor(id) : undefined;
+  if (sp) {
+    // sprite sheets have about twice the detail, so draw them at half the scale
+    const s = sp.sheet, img = sp.right[s.idle], k = scale / 2;
+    const top = s.headY - 1, bodyH = s.feetY - s.headY + 2;
+    const cropH = full ? bodyH : Math.min(bodyH, Math.ceil(c.height / k));
+    const cropW = Math.ceil(c.width / k);
+    g.drawImage(img, s.cell / 2 - cropW / 2, top, cropW, cropH, 0, 0, cropW * k, cropH * k);
+    return c;
+  }
   g.setTransform(scale, 0, 0, scale, 0, 0);
   drawHuman(g, L, 6, full ? 22 : 21, 'down', 0, false);
   return c;
@@ -58,7 +69,7 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
     const li = document.createElement('li');
     const b = document.createElement('button');
     b.type = 'button';
-    b.appendChild(portrait(f.look, 4, false));
+    b.appendChild(portrait(f.look, 4, false, f.id));
     const mid = document.createElement('span');
     mid.style.minWidth = '0';
     mid.innerHTML = '<span class="rname"></span><span class="rtask"></span>';
@@ -111,7 +122,7 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
       if (focusKey !== f.id) {
         focusKey = f.id;
         focus.innerHTML = '';
-        focus.appendChild(portrait(f.look, 6, true));
+        focus.appendChild(portrait(f.look, 6, true, f.id));
         const d = document.createElement('div');
         d.style.minWidth = '0';
         d.innerHTML = '<h2></h2><p class="role"></p><span class="status"><i class="dot"></i><span class="sl"></span></span><dl class="kv"><dt>Now</dt><dd class="now"></dd><dt>Where</dt><dd class="where"></dd><dt>Last output</dt><dd class="out"></dd><dt>Tasks done</dt><dd class="dn"></dd></dl><p class="bio"></p><p class="aid"></p><button type="button" class="followbtn"></button>';
