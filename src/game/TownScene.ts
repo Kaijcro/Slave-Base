@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { W, H, S, PF } from '../config';
+import { W, H, S, PF, PERSON_SCALE } from '../config';
 import { drawHuman, type Dir } from '../art/human';
 import { buildBackground, TownArt } from '../art/town';
 import { painter, clamp } from '../art/pixel';
@@ -53,7 +53,7 @@ export class TownScene extends Phaser.Scene {
           tex.refresh();
         }
       }
-      const s = this.add.sprite(0, 0, `${f.id}-down-0`).setOrigin(0.5, FEET_Y / SPR_H).setInteractive({ useHandCursor: true });
+      const s = this.add.sprite(0, 0, `${f.id}-down-0`).setOrigin(0.5, FEET_Y / SPR_H).setScale(PERSON_SCALE).setInteractive({ useHandCursor: true });
       s.on('pointerdown', () => store.select({ type: 'agent', id: f.id }));
       s.on('pointerover', () => (store.hover = f.id));
       s.on('pointerout', () => { if (store.hover === f.id) store.hover = null; });
@@ -87,7 +87,7 @@ export class TownScene extends Phaser.Scene {
         const pu = 0.5 + 0.5 * Math.sin(this.t * 5);
         g.strokeStyle = `rgba(134,224,189,${0.55 + 0.45 * pu})`;
         g.lineWidth = 1;
-        g.beginPath(); g.ellipse(f.x, f.y, 6 + pu, 2.6 + pu * 0.4, 0, 0, Math.PI * 2); g.stroke();
+        g.beginPath(); g.ellipse(f.x, f.y, (6 + pu) * PERSON_SCALE, (2.6 + pu * 0.4) * PERSON_SCALE, 0, 0, Math.PI * 2); g.stroke();
       }
     }
     this.worldTex.refresh();
@@ -142,7 +142,7 @@ export class TownScene extends Phaser.Scene {
     }
     for (const f of this.town.figs) {
       if (f.state === 'inside') continue;
-      const top = f.y - 21 - (f.look.tall ? 1 : 0);
+      const top = f.y - Math.round((21 + (f.look.tall ? 1 : 0)) * PERSON_SCALE);
       if (f.bubbleT > 0) bubble(g, f.bubble, f.x, top);
       else if ((sel.type === 'agent' && sel.id === f.id) || store.hover === f.id) bubble(g, firstName(f), f.x, top, '#86e0bd', '#241b2e');
     }
