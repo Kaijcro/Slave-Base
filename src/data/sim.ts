@@ -48,6 +48,15 @@ export class SimSource implements AgentSource {
     }
   }
 
+  /** Demo prompts: stop making up work for this agent until release() is called. */
+  hold(id: string) {
+    this.timers = this.timers.filter((x) => x.id !== id);
+    this.plans.delete(id);
+  }
+  release(id: string) {
+    this.later(id, 2 + Math.random() * 2, () => this.work(id, this.homeOf(id)));
+  }
+
   private later(id: string, t: number, fn: () => void) {
     this.timers = this.timers.filter((x) => x.id !== id);
     this.timers.push({ id, t, fn });

@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from './client';
 import type { AgentEvent, AgentSource, Emit } from './types';
 
 /**
@@ -10,8 +11,8 @@ export class SupabaseSource implements AgentSource {
   status = 'Connecting…';
   private sb: SupabaseClient;
 
-  constructor(url: string, publishableKey: string) {
-    this.sb = createClient(url, publishableKey, { auth: { persistSession: false } });
+  constructor() {
+    this.sb = supabase();
   }
 
   async start(emit: Emit) {

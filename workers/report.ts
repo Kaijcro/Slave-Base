@@ -9,7 +9,8 @@ import { EVENT_KINDS, type EventKind } from '../src/data/types';
  */
 let sb: SupabaseClient | null = null;
 
-function client() {
+/** The server-side Supabase client (secret key). */
+export function client() {
   if (sb) return sb;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;

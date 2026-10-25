@@ -9,6 +9,7 @@ import { PLACES, PLACE_KEYS, PLAZA, type PlaceKey } from '../world/places';
 import type { Town, Figure } from './Town';
 import type { AgentSource } from '../data/types';
 import type { Drawable } from '../art/kit';
+import { room, isEnterable, IW, IH, type Room } from '../art/interiors';
 import { store } from '../ui/store';
 
 const DIRS: Dir[] = ['down', 'up', 'left', 'right'];
@@ -32,6 +33,10 @@ export class TownScene extends Phaser.Scene {
   private cam = { x: 0, y: 0, z: 1 };
   private drag: { x: number; y: number; cx: number; cy: number; moved: boolean } | null = null;
   private pinch: number | null = null;
+  /** Interior view: a 520 x 320 canvas drawn at 2x over the whole map. */
+  private roomCanvas = Object.assign(document.createElement('canvas'), { width: IW, height: IH });
+  /** Where each person is drawn inside the current room, for clicking and labels. */
+  private inRoom: { f: Figure; x: number; y: number }[] = [];
 
   constructor(private town: Town, private source: AgentSource) {
     super('town');
@@ -66,6 +71,7 @@ export class TownScene extends Phaser.Scene {
     // Zoom and pan: scroll or pinch to zoom, drag to move around, click to select.
     this.input.addPointer(1);
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (store.inside) { this.drag = null; return; }
       this.drag = { x: p.x, y: p.y, cx: this.cam.x, cy: this.cam.y, moved: false };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
@@ -96,16 +102,27 @@ export class TownScene extends Phaser.Scene {
       const wasDrag = this.drag?.moved;
       this.drag = null; this.pinch = null;
       if (wasDrag) { this.input.setDefaultCursor('default'); return; }
+      if (store.inside) {
+        const who = this.pickInRoom(p.x / S, p.y / S);
+        if (who) store.select({ type: 'agent', id: who.id });
+        return;
+      }
       const hit = this.pick(p.x / S, p.y / S);
       if (hit?.type === 'agent') store.select({ type: 'agent', id: hit.id });
-      else if (hit?.type === 'place') store.select({ type: 'place', key: hit.key });
+      else if (hit?.type === 'place') {
+        // clicking a building takes you inside it
+        if (isEnterable(hit.key)) store.enter(hit.key);
+        else store.select({ type: 'place', key: hit.key });
+      }
     });
     this.game.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
+      if (store.inside) return;
       const c = this.game.canvas, k = W / c.clientWidth;
       this.zoomAt(Math.exp(-e.deltaY * 0.0018), e.offsetX * k, e.offsetY * k);
     }, { passive: false });
     store.cam.zoomBy = (f) => this.zoomAt(f, W / 2, H / 2);
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && store.inside) store.enter(null); });
     store.cam.reset = () => { store.setFollow(null); this.cam = { x: 0, y: 0, z: 1 }; store.cam.zoom = 1; };
   }
 
@@ -141,15 +158,15 @@ export class TownScene extends Phaser.Scene {
 
   /* ---------------- people ---------------- */
   /** The image to draw for a person this frame, and where it goes relative to their feet. */
-  private frameFor(f: Figure, moving: boolean): { c: HTMLCanvasElement; ox: number; oy: number } {
+  private frameFor(f: Figure, moving: boolean, dir: Dir = f.dir): { c: HTMLCanvasElement; ox: number; oy: number } {
     const sp = spriteFor(f.id);
     if (sp) {
       const s = sp.sheet;
       const i = moving ? Math.floor(f.dist / 0.22) % s.frames : s.idle;
-      return { c: (f.dir === 'left' ? sp.left : sp.right)[i], ox: -s.cell / 2, oy: -s.feetY };
+      return { c: (dir === 'left' ? sp.left : sp.right)[i], ox: -s.cell / 2, oy: -s.feetY };
     }
     const n = moving ? 1 + (Math.floor(f.dist / 0.32) % 2) : 0;
-    return { c: this.sprites.get(`${f.id}-${f.dir}-${n}`)!, ox: -(SPR_W * PERSON_SCALE) / 2, oy: -FEET_Y * PERSON_SCALE };
+    return { c: this.sprites.get(`${f.id}-${dir}-${n}`)!, ox: -(SPR_W * PERSON_SCALE) / 2, oy: -FEET_Y * PERSON_SCALE };
   }
   /** How tall a person stands, in town pixels (for name tags and clicking). */
   private heightOf(f: Figure) {
@@ -181,7 +198,24 @@ export class TownScene extends Phaser.Scene {
     return null;
   }
 
+  private pickInRoom(vx: number, vy: number): Figure | null {
+    // room pixels are 2 town pixels each
+    const x = vx / 2, y = vy / 2;
+    let best: { f: Figure; y: number } | null = null;
+    for (const p of this.inRoom) {
+      if (x >= p.x - 8 && x <= p.x + 8 && y >= p.y - this.heightOf(p.f) && y <= p.y + 2 && (!best || p.y > best.y)) best = { f: p.f, y: p.y };
+    }
+    return best?.f ?? null;
+  }
+
   private hover(x: number, y: number) {
+    if (store.inside) {
+      const who = this.pickInRoom(x, y);
+      store.hover = who?.id ?? null;
+      this.hoverPlace = null;
+      this.input.setDefaultCursor(who ? 'pointer' : 'default');
+      return;
+    }
     const hit = this.pick(x, y);
     store.hover = hit?.type === 'agent' ? hit.id : null;
     this.hoverPlace = hit?.type === 'place' ? hit.key : null;
@@ -197,9 +231,10 @@ export class TownScene extends Phaser.Scene {
       this.t += dt;
     }
     this.town.update(dt, dt > 0 ? realDt : 0);
+    if (dt > 0) this.art.update(dt, this.town.occ, this.town.figs, this.town.bell);
+    if (store.inside) return this.drawInside(room(store.inside));
     this.followCam(realDt);
     this.worldImg.setScale(S * this.cam.z).setPosition(-this.cam.x * S * this.cam.z, -this.cam.y * S * this.cam.z);
-    if (dt > 0) this.art.update(dt, this.town.occ, this.town.figs, this.town.bell);
     const mins = this.town.mins;
 
     const g = this.worldTex.getContext();
@@ -243,6 +278,79 @@ export class TownScene extends Phaser.Scene {
     tg.setTransform(S, 0, 0, S, 0, 0);
     this.drawLabels(tg);
     this.topTex.refresh();
+  }
+
+  /* ---------------- inside a building ---------------- */
+  private drawInside(rm: Room) {
+    this.worldImg.setScale(S).setPosition(0, 0);
+    const g = this.roomCanvas.getContext('2d')!;
+    g.imageSmoothingEnabled = false;
+    g.drawImage(rm.bg, 0, 0);
+    const busy = this.town.occ[rm.key];
+    rm.animate(g, this.t, busy);
+
+    // Seat everyone who is inside: owners at their own desks, everyone else in the free seats.
+    const here = this.town.figs.filter((f) => f.state === 'inside' && f.at === rm.key);
+    const taken = new Set<number>();
+    const placed: { f: Figure; x: number; y: number; dir: Dir }[] = [];
+    const seatOf = (f: Figure) => {
+      let i = rm.seats.findIndex((s, k) => s.owner === f.id && !taken.has(k));
+      if (i < 0) i = rm.seats.findIndex((s, k) => !s.owner && !taken.has(k));
+      if (i < 0) i = rm.seats.findIndex((s, k) => !taken.has(k) && !here.some((h) => h.id === s.owner));
+      return i;
+    };
+    for (const f of [...here].sort((a, b) => Number(rm.seats.some((s) => s.owner === b.id)) - Number(rm.seats.some((s) => s.owner === a.id)))) {
+      const i = seatOf(f);
+      if (i >= 0) { taken.add(i); const s = rm.seats[i]; placed.push({ f, x: s.x, y: s.y, dir: s.dir }); }
+      else placed.push({ f, x: IW / 2 + (placed.length % 5) * 18 - 36, y: IH - 24, dir: 'up' });
+    }
+    this.inRoom = placed;
+
+    const items: { y: number; draw: () => void }[] = rm.pieces.map((p) => ({ y: p.y, draw: () => g.drawImage(p.canvas, p.x, p.top) }));
+    const sel = store.sel;
+    for (const p of placed) {
+      const spr = this.frameFor(p.f, false, p.dir);
+      // a little bob while they work
+      const bob = p.f.status === 'working' && Math.sin(this.t * 3 + p.x) > 0.6 ? 1 : 0;
+      items.push({
+        y: p.y,
+        draw: () => {
+          g.fillStyle = 'rgba(20,16,40,.22)'; g.fillRect(p.x - 7, p.y - 1, 14, 3);
+          if (sel.type === 'agent' && sel.id === p.f.id) {
+            const pu = 0.5 + 0.5 * Math.sin(this.t * 5);
+            g.strokeStyle = `rgba(134,224,189,${0.55 + 0.45 * pu})`; g.lineWidth = 1;
+            g.beginPath(); g.ellipse(p.x + 0.5, p.y, 10 + pu, 4 + pu * 0.5, 0, 0, Math.PI * 2); g.stroke();
+          }
+          g.drawImage(spr.c, p.x + spr.ox, p.y + spr.oy - bob);
+        },
+      });
+    }
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.draw();
+    // evening light through the windows
+    const L = TownArt.lighting(this.town.mins);
+    if (L.night > 0.05) { g.fillStyle = `rgba(16,18,64,${L.night * 0.25})`; g.fillRect(0, 0, IW, IH); }
+
+    const wg = this.worldTex.getContext();
+    wg.setTransform(1, 0, 0, 1, 0, 0);
+    wg.imageSmoothingEnabled = false;
+    wg.drawImage(this.roomCanvas, 0, 0, W, H);
+    this.worldTex.refresh();
+
+    // Labels: everyone's name, speech bubbles, and what's happening in the room
+    const tg = this.topTex.getContext();
+    tg.setTransform(1, 0, 0, 1, 0, 0);
+    tg.clearRect(0, 0, W * S, H * S);
+    tg.setTransform(S, 0, 0, S, 0, 0);
+    const pb = this.town.placeBubble[rm.key];
+    if (pb) bubble(tg, pb.text, W / 2, H - 40, '#241b2e', '#fffaf0', 14);
+    for (const p of placed) {
+      const top = (p.y - this.heightOf(p.f)) * 2;
+      const chosen = (sel.type === 'agent' && sel.id === p.f.id) || store.hover === p.f.id;
+      if (p.f.bubbleT > 0) bubble(tg, p.f.bubble, p.x * 2, top - 2, '#241b2e', '#fffaf0', 14);
+      else bubble(tg, firstName(p.f), p.x * 2, top - 2, chosen ? '#241b2e' : '#86e0bd', chosen ? '#86e0bd' : '#241b2e', 13);
+    }
+    if (!placed.length) bubble(tg, 'Nobody is in right now', W / 2, H / 2, '#f1ead8', '#241b2e', 16);
   }
 
   private drawLabels(g: CanvasRenderingContext2D) {
@@ -297,14 +405,14 @@ export class TownScene extends Phaser.Scene {
 
 const firstName = (f: Figure) => f.name.split(' ')[0];
 
-function bubble(g: CanvasRenderingContext2D, txt: string, x: number, y: number, fg = '#241b2e', bg = '#fffaf0') {
+function bubble(g: CanvasRenderingContext2D, txt: string, x: number, y: number, fg = '#241b2e', bg = '#fffaf0', size = 6) {
   const R = painter(g);
-  g.font = `600 6px ${PF}`;
+  g.font = `600 ${size}px ${PF}`;
   g.textBaseline = 'top';
-  const w = Math.ceil(g.measureText(txt).width) + 7, h = 10;
+  const pad = Math.round(size * 0.6), w = Math.ceil(g.measureText(txt).width) + pad * 2 + 1, h = Math.round(size * 1.7);
   const bx = clamp(Math.round(x - w / 2), 2, W - w - 2);
   const by = Math.max(2, Math.round(y - h));
   R(bx, by, w, h, '#241b2e'); R(bx + 1, by + 1, w - 2, h - 2, bg);
   R(Math.round(x) - 1, by + h, 3, 1, '#241b2e'); R(Math.round(x), by + h + 1, 1, 1, '#241b2e');
-  g.fillStyle = fg; g.fillText(txt, bx + 3.5, by + 2);
+  g.fillStyle = fg; g.fillText(txt, bx + pad + 0.5, by + Math.round(size * 0.35));
 }

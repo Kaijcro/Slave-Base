@@ -7,7 +7,11 @@ import { Town } from './game/Town';
 import { TownScene } from './game/TownScene';
 import { pickSource } from './data/source';
 import { mountSidebar } from './ui/sidebar';
+import { mountMonitor } from './ui/monitor';
+import { LiveTasks, DemoTasks } from './data/tasks';
+import type { SimSource } from './data/sim';
 import { store } from './ui/store';
+import { PLACES } from './world/places';
 
 const source = pickSource(AGENTS);
 const town = new Town(AGENTS, source.mode);
@@ -48,6 +52,10 @@ const game = new Phaser.Game({
 
 mountSidebar(town, () => game.canvas, () => source.status);
 
+// The agent monitor under the map, with prompting
+const tasks = source.mode === 'live' ? new LiveTasks() : new DemoTasks(AGENTS, source as SimSource, (e) => town.apply(e));
+mountMonitor(town, tasks);
+
 // Map zoom buttons
 document.querySelectorAll<HTMLButtonElement>('.zoombar button').forEach((b) =>
   b.addEventListener('click', () => {
@@ -57,6 +65,15 @@ document.querySelectorAll<HTMLButtonElement>('.zoombar button').forEach((b) =>
   }),
 );
 document.querySelector('#followchip button')?.addEventListener('click', () => store.setFollow(null));
+
+// Inside a building: show the back button and the room's name
+document.getElementById('backbtn')?.addEventListener('click', () => store.enter(null));
+const syncRoom = () => {
+  document.body.classList.toggle('inside', !!store.inside);
+  (document.getElementById('roombar') as HTMLElement).hidden = !store.inside;
+  if (store.inside) document.getElementById('roomname')!.textContent = PLACES[store.inside].name;
+};
+store.listeners.add(syncRoom);
 
 // Handy for debugging in the browser console: window.game
 (window as unknown as { game: Phaser.Game }).game = game;

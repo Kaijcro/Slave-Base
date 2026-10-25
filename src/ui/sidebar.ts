@@ -7,7 +7,7 @@ import { store } from './store';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const STATUS: Record<Figure['status'], { label: string; cls: string; color: string }> = {
+export const STATUS: Record<Figure['status'], { label: string; cls: string; color: string }> = {
   working: { label: 'Working', cls: 'work', color: 'var(--mint)' },
   done: { label: 'Done', cls: 'work', color: 'var(--mint)' },
   walking: { label: 'Walking', cls: 'walk', color: 'var(--gold)' },
@@ -16,7 +16,7 @@ const STATUS: Record<Figure['status'], { label: string; cls: string; color: stri
   church: { label: 'At church', cls: 'idle', color: 'var(--gold)' },
 };
 
-function line(f: Figure) {
+export function line(f: Figure) {
   switch (f.status) {
     case 'working': return f.task || 'Working';
     case 'done': return 'Finished: ' + f.lastOut;
@@ -40,7 +40,7 @@ export function fmtTime(m: number) {
   return `${h}:${String(mm).padStart(2, '0')} ${ap}`;
 }
 
-function portrait(L: Look, scale: number, full: boolean, id?: string) {
+export function portrait(L: Look, scale: number, full: boolean, id?: string) {
   const w = 12, h = full ? 24 : 13;
   const c = document.createElement('canvas');
   c.width = w * scale; c.height = h * scale;
@@ -155,6 +155,13 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
         const d = document.createElement('div');
         d.style.minWidth = '0';
         d.innerHTML = '<h2></h2><p class="role"></p><span class="status"><i class="dot"></i><span class="sl"></span></span><dl class="kv"><dt>Inside</dt><dd class="in"></dd><dt>Assigned</dt><dd class="as"></dd><dt>Latest</dt><dd class="out"></dd></dl><p class="aid"></p>';
+        if (k !== 'plaza') {
+          const eb = document.createElement('button');
+          eb.type = 'button'; eb.className = 'enterbtn';
+          eb.textContent = store.inside === k ? 'Back to town' : 'Go inside';
+          eb.addEventListener('click', () => store.enter(store.inside === k ? null : k));
+          d.appendChild(eb);
+        }
         d.querySelector('h2')!.textContent = p.name;
         d.querySelector('.role')!.textContent = p.biz;
         d.querySelector('.aid')!.innerHTML = 'Place key: <code></code>';
@@ -171,7 +178,7 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
       focus.querySelector('.out')!.textContent = fin ? `${fin.text} (${first(fin.fig)}, ${fmtTime(fin.mins)})` : 'Nothing yet today';
       const c = focus.querySelector('canvas') as HTMLCanvasElement;
       const src = gameCanvas();
-      if (src) {
+      if (src && !store.inside) {
         const g = c.getContext('2d')!;
         g.imageSmoothingEnabled = false;
         const [rx, ry, rw, rh] = p.rect;

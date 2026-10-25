@@ -76,6 +76,20 @@ Prefer pay-per-use instead? Put an API key from console.anthropic.com in `ANTHRO
 
 **Add your own job:** copy an entry in `workers/jobs.ts`, then change the agent, the building and the prompt.
 
+## 4b. Prompt your agents from the website
+
+1. In Supabase, open **SQL Editor → New query**, paste `supabase/prompts.sql`, change `you@example.com` at the bottom to your email, and click **Run**.
+2. In Supabase, open **Authentication → URL Configuration** and add `http://localhost:5173` (and later your Vercel address) under **Redirect URLs**.
+3. Start the town runner in its own Terminal tab and leave it open:
+   ```bash
+   cd ~/Documents/Slave-Base
+   npm run town
+   ```
+4. Open the town, scroll to the **Agent monitor**, click **Sign in to send prompts**, and use the link emailed to you.
+5. Type a prompt in anyone's card and click **Send**. They walk to work, their steps appear live, and the full answer shows up in their card. Files they make are saved in `output/<agent>/`.
+
+Each agent remembers their previous prompts. Tick **New conversation** to start fresh. The runner runs up to `MAX_PARALLEL` agents at once (2 by default, which suits a Pro plan) and uses your Claude subscription unless you put an API key in `.env`.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**

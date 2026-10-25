@@ -30,6 +30,7 @@
       </header>
 
       <div class="layout">
+        <div class="leftcol">
         <section class="stage" aria-label="Town map">
           <div class="mapwrap">
             <div id="stage-canvas"></div>
@@ -38,10 +39,20 @@
               <button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">−</button>
               <button type="button" data-z="reset" title="Show the whole town">Fit</button>
             </div>
+            <div class="roombar" id="roombar" hidden><button type="button" id="backbtn">← Back to town</button><span id="roomname"></span></div>
             <div class="followchip" id="followchip" hidden><span>Following <b></b></span><button type="button">Stop</button></div>
           </div>
           <div class="legend" id="legend"></div>
         </section>
+          <section class="card monitor" id="monitor" aria-label="Agent monitor">
+            <header class="mon-head">
+              <div><h3 id="monTitle">Agent monitor</h3><p id="monSub">What every agent is doing right now</p></div>
+              <div class="mon-tools"><span class="pill" id="runnerPill"></span><span id="authBox"></span></div>
+            </header>
+            <p class="mon-note" id="monNote" hidden></p>
+            <div class="mon-grid" id="monGrid"></div>
+          </section>
+        </div>
         <aside>
           <div class="card focus" id="focus"></div>
           <div class="card sec">

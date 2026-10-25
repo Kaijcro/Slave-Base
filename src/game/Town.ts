@@ -34,6 +34,8 @@ export interface Figure extends AgentDef {
   pause: number;
   idleAfter: number;
   pending: { kind: EventKind; text: string } | null;
+  /** Their recent activity, newest first (shown in the agent monitor). */
+  log: { mins: number; kind: EventKind; text: string; place: PlaceKey }[];
   /** During the Sunday service: what to go back to afterwards, and when they sat down. */
   resume: Resume | null;
   seatedAt: number | null;
@@ -74,7 +76,7 @@ export class Town {
       const f: Figure = {
         ...d, u: 0, v: 0, state: 'inside', at, target: null, path: [], via: [], dir: 'down', frame: 0, dist: 0,
         lo: (i - (defs.length - 1) / 2) * 0.09, status: 'waiting', task: '', lastOut: 'Nothing yet today', done: 0,
-        bubble: '', bubbleT: 0, wp: null, pause: 0, idleAfter: 0, pending: null, resume: null, seatedAt: null,
+        bubble: '', bubbleT: 0, wp: null, pause: 0, idleAfter: 0, pending: null, resume: null, seatedAt: null, log: [],
       };
       this.byId.set(d.id, f);
       return f;
@@ -103,6 +105,8 @@ export class Town {
     const item: FeedItem = { fig: f, kind: ev.kind, text: ev.text, place: ev.kind === 'break' ? 'plaza' : ev.place, mins };
     this.feed.unshift(item);
     if (this.feed.length > 60) this.feed.pop();
+    f.log.unshift({ mins, kind: ev.kind, text: ev.text, place: item.place });
+    if (f.log.length > 30) f.log.pop();
     this.onFeed(item);
 
     const inChurch = this.service && !o.instant;
