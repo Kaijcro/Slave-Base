@@ -20,6 +20,9 @@ import { join, resolve } from 'node:path';
 import { query, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { report, client } from './report';
 import { persona } from './personas';
+import { shopServer, SHOP_TOOLS } from './shop/tools';
+import { SHOP_DIR } from './shop/design';
+import { SCHEDULE } from './schedule';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -100,15 +103,20 @@ async function run(t: Task) {
     return {};
   };
 
+  // AI Enterprizes runs the Etsy shop, so its agents get the shop tools.
+  const shop = place === 'ai';
+  if (shop) mkdirSync(join(SHOP_DIR, 'research'), { recursive: true });
+
   const attempt = async (resume: string | undefined) => {
     let text = '', ok = false, why = '';
     for await (const msg of query({
       prompt: t.prompt,
       options: {
         systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place) },
-        allowedTools: TOOLS,
+        allowedTools: shop ? [...TOOLS, ...SHOP_TOOLS] : TOOLS,
+        ...(shop ? { mcpServers: { shop: shopServer() }, additionalDirectories: [SHOP_DIR] } : {}),
         permissionMode: 'acceptEdits',
-        maxTurns: MAX_TURNS,
+        maxTurns: shop ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
         cwd: dir,
         resume,
         abortController: abort,
@@ -167,6 +175,22 @@ async function run(t: Task) {
   }
 }
 
+/* ---------------- routines (workers/schedule.ts) ---------------- */
+const SCHEDULE_FILE = resolve('.town-schedule.json');
+let lastRuns: Record<string, string> = {};
+try { if (existsSync(SCHEDULE_FILE)) lastRuns = JSON.parse(readFileSync(SCHEDULE_FILE, 'utf8')); } catch { lastRuns = {}; }
+
+async function runRoutines() {
+  const now = new Date(), today = now.toDateString();
+  for (const r of SCHEDULE) {
+    if (!r.days.includes(now.getDay()) || now.getHours() < r.hour || lastRuns[r.id] === today) continue;
+    lastRuns[r.id] = today;
+    writeFileSync(SCHEDULE_FILE, JSON.stringify(lastRuns, null, 2));
+    const { error } = await db.from('agent_tasks').insert({ agent_id: r.agent, prompt: r.prompt, fresh: true });
+    log(error ? `✖ Couldn't start routine ${r.id}: ${error.message}` : `⏰ Routine: ${r.id} queued for ${r.agent}`);
+  }
+}
+
 /* ---------------- the loop ---------------- */
 async function poll() {
   // Cancelled while running?
@@ -206,6 +230,6 @@ process.on('SIGINT', async () => {
 await heartbeat();
 setInterval(() => void heartbeat(), 20_000);
 for (;;) {
-  try { await poll(); } catch (e) { log(`✖ ${(e as Error).message}`); }
+  try { await runRoutines(); await poll(); } catch (e) { log(`✖ ${(e as Error).message}`); }
   await sleep(3000);
 }

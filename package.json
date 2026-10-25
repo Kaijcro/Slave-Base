@@ -9,16 +9,21 @@
     "typecheck": "tsc --noEmit",
     "move": "tsx scripts/move.ts",
     "agent": "tsx workers/run-agent.ts",
-    "town": "tsx workers/town.ts"
+    "town": "tsx workers/town.ts",
+    "etsy-login": "tsx workers/shop/etsy-login.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.309",
+    "@resvg/resvg-js": "^2.6.2",
     "@supabase/supabase-js": "^2.118.0",
     "dotenv": "^18.0.9",
-    "phaser": "^3.90.0"
+    "pdfkit": "^0.20.2",
+    "phaser": "^3.90.0",
+    "svg-to-pdfkit": "^0.1.8"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/pdfkit": "^0.17.7",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"

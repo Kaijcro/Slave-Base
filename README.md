@@ -90,6 +90,25 @@ Prefer pay-per-use instead? Put an API key from console.anthropic.com in `ANTHRO
 
 Each agent remembers their previous prompts. Tick **New conversation** to start fresh. The runner runs up to `MAX_PARALLEL` agents at once (2 by default, which suits a Pro plan) and uses your Claude subscription unless you put an API key in `.env`.
 
+## 4c. AI Enterprizes Etsy shop
+
+AI Enterprizes runs an Etsy shop by itself. **Kofi** researches young shops (opened in the last 18 months) with 1,000+ sales using Etsy's official data. **Priya** turns what sells into original designs and publishes them. Kofi's routine runs Monday and Thursday at 9 AM, and Priya's Monday to Saturday at 11 AM, while `npm run town` is on. Edit the times in `workers/schedule.ts`, or prompt them any time from the Agent monitor.
+
+- **Digital downloads** (wall art, printables, SVG cut files, stickers) include a **Canva-editable PDF**. Buyers import it into Canva (free) and can change every word and color. Each download also has print-ready PNGs and, for cut files and stickers, an SVG.
+- **T-shirts and mugs** go through Printify, which prints and ships them.
+- **Listings** automatically say AI helped make the design, and that Printify makes physical items, as Etsy requires.
+- **Safety rules:** brands, characters and celebrities are blocked, and at most `SHOP_DAILY_LIMIT` listings go live a day. The rest are saved as drafts.
+
+**One-time setup:**
+1. **Open your Etsy shop** at etsy.com/sell.
+2. **Create an Etsy app** at etsy.com/developers: choose *Create a new app*, and set the callback URL to `http://localhost:3003/oauth/redirect`. Copy the **keystring** and **shared secret** into `.env` as `ETSY_API_KEY` and `ETSY_SHARED_SECRET`. Etsy may take a few days to approve a new app.
+3. **Connect your shop:** run `npm run etsy-login` and click *Grant access*. Run it again if the agents say your Etsy sign-in expired.
+4. **Set up Printify:** open a free Printify account, connect your Etsy shop (*My stores → Add new store → Etsy*), then create a token (*My account → Connections*) and add it to `.env` as `PRINTIFY_API_TOKEN`.
+5. **Name Printify as your production partner:** in Etsy, go to *Shop Manager → Settings → Production partners* and add Printify.
+6. **Restart the runner** with `npm run town`.
+
+Everything the agents make is saved in `output/shop/`: research reports in `research/`, and each design's files and photos in `designs/`.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**
