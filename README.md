@@ -88,7 +88,9 @@ Prefer pay-per-use instead? Put an API key from console.anthropic.com in `ANTHRO
 4. Open the town, scroll to the **Agent monitor**, click **Sign in to send prompts**, and use the link emailed to you.
 5. Type a prompt in anyone's card and click **Send**. They walk to work, their steps appear live, and the full answer shows up in their card. Files they make are saved in `output/<agent>/`.
 
-Each agent remembers their previous prompts. Tick **New conversation** to start fresh. The runner runs up to `MAX_PARALLEL` agents at once (2 by default, which suits a Pro plan) and uses your Claude subscription unless you put an API key in `.env`.
+Each agent remembers their previous prompts. Tick **New conversation** to start fresh.
+
+**Hand-offs:** agents can pass work to each other. Ask for it in your prompt, for example *"Research best-selling printables, then hand the top 3 ideas to Priya."* The teammate's task appears in their card as *From Kofi* and starts as soon as Kofi finishes, with his files attached. To turn this on, run `supabase/handoff.sql` once in the Supabase SQL Editor. The runner runs up to `MAX_PARALLEL` agents at once (2 by default, which suits a Pro plan) and uses your Claude subscription unless you put an API key in `.env`.
 
 ## 4c. AI Enterprizes Etsy shop
 

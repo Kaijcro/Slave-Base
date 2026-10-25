@@ -23,6 +23,7 @@ import { persona } from './personas';
 import { shopServer, SHOP_TOOLS } from './shop/tools';
 import { SHOP_DIR } from './shop/design';
 import { SCHEDULE } from './schedule';
+import { townServer, HANDOFF_TOOL } from './handoff';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -32,7 +33,7 @@ const TOOLS = ['WebSearch', 'WebFetch', 'Read', 'Write', 'Edit', 'Glob', 'Grep']
 const OUT = resolve('output');
 const SESSIONS = resolve('.town-sessions.json');
 
-interface Task { id: number; agent_id: string; prompt: string; status: string; fresh: boolean }
+interface Task { id: number; agent_id: string; prompt: string; status: string; fresh: boolean; from_agent?: string | null; parent_id?: number | null }
 
 // A blank or placeholder key means "use my Claude subscription". Remove it so it can't override the login.
 const apiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? '';
@@ -64,6 +65,7 @@ function describe(tool: string, input: unknown): string {
     case 'Write': case 'Edit': return `Saving ${String(i.file_path ?? 'notes').split('/').pop()}`;
     case 'Read': return `Reading ${String(i.file_path ?? 'a file').split('/').pop()}`;
     case 'Glob': case 'Grep': return 'Looking through saved files';
+    case 'mcp__town__hand_off': return `Handing off to ${AGENTS.find((a) => a.id === i.to)?.name.split(' ')[0] ?? 'a teammate'}`;
     default: return `Using ${tool}`;
   }
 }
@@ -87,12 +89,13 @@ async function run(t: Task) {
   const abort = new AbortController();
   running.set(t.id, { agent: agent.id, abort });
   const first = agent.name.split(' ')[0];
-  log(`▶ ${first}: ${short(t.prompt, 70)}`);
+  log(`▶ ${first}${t.from_agent ? ` (from ${AGENTS.find((a) => a.id === t.from_agent)?.name.split(' ')[0] ?? t.from_agent})` : ''}: ${short(t.prompt.replace(/^.*handed you this task:\s*/s, '').replace(/\s+/g, ' '), 70)}`);
   await heartbeat();
 
   const dir = join(OUT, agent.id);
   mkdirSync(dir, { recursive: true });
-  await report(agent.id, 'started', place, short(t.prompt, 80)).catch((e) => log(`✖ ${e.message}`));
+  const title = t.from_agent ? t.prompt.replace(/^.*handed you this task:\s*/s, '') : t.prompt;
+  await report(agent.id, 'started', place, short(title, 80)).catch((e) => log(`✖ ${e.message}`));
 
   const onToolUse: HookCallback = async (input) => {
     if (input.hook_event_name === 'PreToolUse') {
@@ -107,14 +110,24 @@ async function run(t: Task) {
   const shop = place === 'ai';
   if (shop) mkdirSync(join(SHOP_DIR, 'research'), { recursive: true });
 
+  // Any agent can hand work to a teammate.
+  const handoffs = townServer({
+    db, taskId: t.id, agentId: agent.id, cwd: dir,
+    onHandoff: (to) => {
+      const name = AGENTS.find((a) => a.id === to)?.name.split(' ')[0] ?? to;
+      log(`   ${first} · handed off to ${name} (starts when ${first} finishes)`);
+    },
+  });
+
   const attempt = async (resume: string | undefined) => {
     let text = '', ok = false, why = '';
     for await (const msg of query({
       prompt: t.prompt,
       options: {
         systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place) },
-        allowedTools: shop ? [...TOOLS, ...SHOP_TOOLS] : TOOLS,
-        ...(shop ? { mcpServers: { shop: shopServer() }, additionalDirectories: [SHOP_DIR] } : {}),
+        allowedTools: [...TOOLS, HANDOFF_TOOL, ...(shop ? SHOP_TOOLS : [])],
+        mcpServers: { town: handoffs, ...(shop ? { shop: shopServer() } : {}) },
+        ...(shop ? { additionalDirectories: [SHOP_DIR] } : {}),
         permissionMode: 'acceptEdits',
         maxTurns: shop ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
         cwd: dir,
@@ -198,12 +211,13 @@ async function poll() {
     const { data } = await db.from('agent_tasks').select('id, status').in('id', [...running.keys()]);
     for (const r of data ?? []) if (r.status === 'cancelled') running.get(r.id)?.abort.abort();
   }
-  const { data: queued, error } = await db.from('agent_tasks').select('id, agent_id, prompt, status, fresh').eq('status', 'queued').order('id').limit(50);
+  const { data: queued, error } = await db.from('agent_tasks').select('id, agent_id, prompt, status, fresh, from_agent, parent_id').eq('status', 'queued').order('id').limit(50);
   if (error) { log(`✖ Couldn't read prompts: ${error.message}. Did you run supabase/prompts.sql?`); return; }
   queuedCount = queued.length;
   for (const t of queued as Task[]) {
     if (running.size >= MAX_PARALLEL) break;
     if ([...running.values()].some((r) => r.agent === t.agent_id)) continue; // one prompt at a time per agent
+    if (t.parent_id && running.has(t.parent_id)) continue; // a hand-off waits until the sender is done
     if (!AGENTS.some((a) => a.id === t.agent_id)) { await update(t.id, { status: 'failed', summary: `No agent called "${t.agent_id}"` }); continue; }
     // Claim it, so two runners never take the same prompt.
     const { data: claimed } = await db.from('agent_tasks').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', t.id).eq('status', 'queued').select('id');

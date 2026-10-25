@@ -25,6 +25,9 @@ export interface AgentTask {
   created_at: string;
   started_at?: string | null;
   finished_at?: string | null;
+  /** Set when another agent handed this task over. */
+  from_agent?: string | null;
+  parent_id?: number | null;
 }
 export interface RunnerInfo { online: boolean; running: number; queued: number; lastSeen: Date | null }
 
@@ -36,6 +39,7 @@ export interface Tasks {
   owner: boolean;
   runner: RunnerInfo | null;
   forAgent(id: string): AgentTask[];
+  byId(id: number): AgentTask | undefined;
   send(agentId: string, prompt: string, fresh: boolean): Promise<void>;
   cancel(id: number): Promise<void>;
   signIn(email: string): Promise<void>;
@@ -49,6 +53,7 @@ abstract class Base {
   onChange(fn: () => void) { this.fns.add(fn); }
   protected changed() { this.fns.forEach((f) => f()); }
   forAgent(id: string) { return [...this.rows.values()].filter((t) => t.agent_id === id).sort((a, b) => b.id - a.id); }
+  byId(id: number) { return this.rows.get(id); }
 }
 
 /* ---------------- live (Supabase) ---------------- */
@@ -166,7 +171,8 @@ export class DemoTasks extends Base implements Tasks {
     this.busy.add(id);
     this.sim.hold(id);
     t.status = 'running'; t.started_at = new Date().toISOString(); this.changed();
-    const title = t.prompt.length > 60 ? t.prompt.slice(0, 57) + '…' : t.prompt;
+    const ask = t.prompt.replace(/^[\s\S]*?handed you this task:\s*/, '').replace(/\s+/g, ' ');
+    const title = ask.length > 60 ? ask.slice(0, 57) + '…' : ask;
     this.emit({ agent_id: id, kind: 'started', place, text: title });
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     await wait(5000);
@@ -181,6 +187,13 @@ export class DemoTasks extends Base implements Tasks {
       t.result = `This is a demo answer from ${def.name}.\n\nIn live mode, the town runner on your Mac sends your prompt to Claude as ${def.name.split(' ')[0]} (${def.role}), and the real answer appears here.\n\nYour prompt was:\n“${t.prompt}”`;
       t.finished_at = new Date().toISOString();
       this.emit({ agent_id: id, kind: 'finished', place, text: t.summary });
+      // "…then hand it to Priya": pretend the agent handed the next step over.
+      const to = /\b(hand|pass|give|send)\b/i.test(t.prompt) ? this.defs.find((d) => d.id !== id && new RegExp(`\\b${d.name.split(' ')[0]}\\b`, 'i').test(t.prompt)) : undefined;
+      if (to && !t.from_agent) {
+        this.emit({ agent_id: id, kind: 'progress', place, text: `Handing off to ${to.name.split(' ')[0]}` });
+        const next: AgentTask = { id: this.next++, agent_id: to.id, prompt: `${def.name} (${def.role}) handed you this task:\n\nContinue from ${def.name.split(' ')[0]}’s work: ${t.prompt}`, fresh: true, status: 'queued', summary: null, result: null, created_at: new Date().toISOString(), from_agent: id, parent_id: t.id };
+        this.rows.set(next.id, next);
+      }
     }
     this.changed();
     this.busy.delete(id);

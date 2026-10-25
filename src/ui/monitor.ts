@@ -21,6 +21,7 @@ const TASK_LABEL: Record<AgentTask['status'], string> = { queued: 'Waiting in li
 interface Card { el: HTMLElement; status: HTMLElement; now: HTMLElement; where: HTMLElement; steps: HTMLElement; result: HTMLElement; queue: HTMLElement; form: HTMLFormElement; ta: HTMLTextAreaElement; send: HTMLButtonElement; fresh: HTMLInputElement; err: HTMLElement; key: string }
 
 export function mountMonitor(town: Town, tasks: Tasks) {
+  const nameOf = (id: string) => { const f = town.byId.get(id); return f ? first(f) : id; };
   const grid = $('monGrid');
   const cards = new Map<string, Card>();
   const open = new Set<number>(); // results the owner has expanded
@@ -144,12 +145,12 @@ export function mountMonitor(town: Town, tasks: Tasks) {
 
     const mine = tasks.forAgent(f.id);
     const latest = mine.find((t) => t.status === 'done' || t.status === 'failed');
-    const key = (latest ? `${latest.id}:${latest.status}:${open.has(latest.id)}` : 'none:' + f.lastOut) + '|' + mine.filter((t) => t.status === 'queued' || t.status === 'running').map((t) => t.id + t.status).join(',');
+    const key = (latest ? `${latest.id}:${latest.status}:${open.has(latest.id)}` : 'none:' + f.lastOut) + '|' + mine.filter((t) => t.status === 'queued' || t.status === 'running').map((t) => t.id + t.status + (t.parent_id ? tasks.byId(t.parent_id)?.status : '')).join(',');
     if (c.key !== key) {
       c.key = key;
       if (latest) {
         c.result.innerHTML = '<div class="m-label">Latest result <small></small></div><p class="m-sum"></p>' + (latest.result ? `<button type="button" class="linkbtn" data-open="${latest.id}"></button><pre class="m-full" hidden></pre>` : '');
-        c.result.querySelector('small')!.textContent = `· ${ago(latest.finished_at)}`;
+        c.result.querySelector('small')!.textContent = `· ${latest.from_agent ? `from ${nameOf(latest.from_agent)} · ` : ''}${ago(latest.finished_at)}`;
         c.result.querySelector('.m-sum')!.textContent = latest.summary || TASK_LABEL[latest.status];
         if (latest.result) {
           const isOpen = open.has(latest.id);
@@ -165,8 +166,10 @@ export function mountMonitor(town: Town, tasks: Tasks) {
       for (const t of mine.filter((t) => t.status === 'queued' || t.status === 'running').reverse()) {
         const li = document.createElement('li');
         li.innerHTML = `<span class="chip ${t.status === 'running' ? 'work' : 'wait'}"></span><span class="q-text"></span><button type="button" class="linkbtn" data-cancel="${t.id}">Cancel</button>`;
-        li.querySelector('.chip')!.textContent = TASK_LABEL[t.status];
-        li.querySelector('.q-text')!.textContent = t.prompt;
+        const parent = t.parent_id ? tasks.byId(t.parent_id) : undefined;
+        const fromName = t.from_agent ? nameOf(t.from_agent) : '';
+        li.querySelector('.chip')!.textContent = t.status === 'queued' && parent?.status === 'running' ? `Waiting for ${fromName}` : TASK_LABEL[t.status];
+        li.querySelector('.q-text')!.textContent = (fromName ? `From ${fromName}: ` : '') + t.prompt.replace(/^[\s\S]*?handed you this task:\s*/, '');
         c.queue.appendChild(li);
       }
     }

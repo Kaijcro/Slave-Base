@@ -18,12 +18,13 @@ export const SCHEDULE: Routine[] = [
       'Write a report to output/shop/research/latest.md (and a dated copy in the same folder) with: the shops you found (name, sales, months open, ' +
       'sales per month, link); the patterns that sell (niches, styles, palettes, wording themes, formats, price ranges); and a ranked list of 10 ' +
       'ORIGINAL product ideas for us, each with the product type, a one-line concept, the buyer it is for, suggested price, and 13 tag ideas. ' +
-      'No brands, characters, celebrities or sports teams.',
+      'No brands, characters, celebrities or sports teams. ' +
+      'Finally, use hand_off to give priya the top 3 ideas to design and publish today, attaching output/shop/research/latest.md.',
   },
   {
     id: 'etsy-create',
     agent: 'priya',
-    days: [1, 2, 3, 4, 5, 6], // Monday to Saturday
+    days: [2, 3, 5, 6], // Tuesday, Wednesday, Friday, Saturday (on Monday and Thursday, Kofi hands her ideas right after his research)
     hour: 11,
     prompt:
       'Create and publish today’s new products for our Etsy shop. Call shop_guide first, then read output/shop/research/latest.md. ' +

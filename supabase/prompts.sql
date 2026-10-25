@@ -33,6 +33,8 @@ create table if not exists public.agent_tasks (
   status       text        not null default 'queued'
                check (status in ('queued', 'running', 'done', 'failed', 'cancelled')),
   fresh        boolean     not null default false,        -- true = start a new conversation
+  from_agent   text,                                      -- who handed this task over (null = you)
+  parent_id    bigint references public.agent_tasks (id) on delete set null, -- the task it came from
   summary      text,                                      -- one line, shown on the card
   result       text,                                      -- the agent's full answer
   created_at   timestamptz not null default now(),
@@ -40,6 +42,9 @@ create table if not exists public.agent_tasks (
   finished_at  timestamptz
 );
 create index if not exists agent_tasks_queue on public.agent_tasks (status, created_at);
+-- (for tables made before hand-offs existed)
+alter table public.agent_tasks add column if not exists from_agent text;
+alter table public.agent_tasks add column if not exists parent_id bigint references public.agent_tasks (id) on delete set null;
 create index if not exists agent_tasks_agent on public.agent_tasks (agent_id, created_at desc);
 
 alter table public.agent_tasks enable row level security;
@@ -53,7 +58,7 @@ create policy "Owners read tasks" on public.agent_tasks
 drop policy if exists "Owners send prompts" on public.agent_tasks;
 create policy "Owners send prompts" on public.agent_tasks
   for insert to authenticated
-  with check (public.is_town_owner() and status = 'queued' and summary is null and result is null);
+  with check (public.is_town_owner() and status = 'queued' and summary is null and result is null and from_agent is null and parent_id is null);
 
 -- Owners can cancel a task; everything else is written by the town runner (which uses the secret key).
 drop policy if exists "Owners cancel tasks" on public.agent_tasks;

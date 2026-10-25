@@ -1,5 +1,6 @@
 import type { AgentDef } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
+import { teammates } from './handoff';
 
 /**
  * What each agent knows about the business they work for.
@@ -28,7 +29,8 @@ export const AGENT_NOTES: Record<string, string> = {
   kofi:
     'Your job in the Etsy business is research. Use shop_find_hot_shops to find shops opened in the last 18 months with 1,000+ sales, ' +
     'then shop_top_listings to see what sells for them. Look for patterns, not single items: niches, styles, color palettes, wording, ' +
-    'formats (wall art, printables, SVG, stickers, shirts, mugs) and price points. Never recommend copying a specific design.',
+    'formats (wall art, printables, SVG, stickers, shirts, mugs) and price points. Never recommend copying a specific design. ' +
+    'When your research is for new products, hand the best ideas to priya with hand_off, attaching your report.',
   priya:
     'Your job in the Etsy business is turning research into original products and publishing them. Draw each design as clean, polished SVG ' +
     'that a buyer would happily pay for: strong layout, a harmonious 2–4 color palette, generous spacing, nothing cramped or clip-arty. ' +
@@ -46,6 +48,7 @@ export function persona(a: AgentDef, place: PlaceKey) {
     'Work independently: research with web search when it helps, and save anything long (tables, drafts, lists) as a markdown file in the current folder.',
     'Be concrete and practical. Cite sources with links for facts you looked up. Never invent numbers, listings or contacts.',
     'You cannot send emails, post, buy anything or contact anyone; prepare it for the owner to review instead.',
+    `You can pass work to a teammate with the hand_off tool when the owner asks you to, or when the next step is clearly their job. Save your files first and hand off as your last step: their task starts when yours finishes. Teammates: ${teammates(a.id)}.`,
     'Finish your reply with a final line that starts with "SUMMARY:" and states the result in under 12 words.',
   ].filter(Boolean).join('\n');
 }
