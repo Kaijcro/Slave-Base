@@ -35,7 +35,9 @@ export const AGENT_NOTES: Record<string, string> = {
     'Your job in the Etsy business is turning research into original products and publishing them. Draw each design as clean, polished SVG ' +
     'that a buyer would happily pay for: strong layout, a harmonious 2–4 color palette, generous spacing, nothing cramped or clip-arty. ' +
     'After shop_make_design, Read the preview image and fix anything that looks off before publishing. Write listings like a top Etsy seller: ' +
-    'a clear keyword-rich title, a friendly description, and 13 specific tags.',
+    'a clear keyword-rich title, a friendly description, and 13 specific tags. ' +
+    'You also look after the shop’s branding when asked: shop_update_profile changes the headline, announcement and buyer messages, ' +
+    'and shop_make_design with shop_banner or shop_icon makes a banner or logo for the owner to upload.',
 };
 
 /** The instructions an agent gets on top of Claude Code's own. */

@@ -2,7 +2,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
-import { findHotShops, topListings, findCategory, createDigitalListing, myListingsReport } from './etsy';
+import { findHotShops, topListings, findCategory, createDigitalListing, myListingsReport, updateShopProfile } from './etsy';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { createProduct } from './printify';
 import { makeDesign, checkSvg, KINDS, FONTS, SHOP_DIR, type Kind } from './design';
 import { brandProblems, cleanListing } from './guard';
@@ -49,7 +50,7 @@ const DIGITAL_FOOTER = (kind: Kind) => {
 const PRINT_FOOTER = '\n\nPrinted and shipped by our production partner, Printify. Designed by our shop with the help of AI tools.';
 
 export const SHOP_TOOLS = [
-  'shop_guide', 'shop_find_hot_shops', 'shop_top_listings', 'shop_categories', 'shop_make_design', 'shop_publish_digital', 'shop_publish_printify', 'shop_report',
+  'shop_guide', 'shop_find_hot_shops', 'shop_top_listings', 'shop_categories', 'shop_make_design', 'shop_publish_digital', 'shop_publish_printify', 'shop_report', 'shop_update_profile',
 ].map((n) => `mcp__shop__${n}`);
 
 export const shopServer = () => createSdkMcpServer({
@@ -58,7 +59,7 @@ export const shopServer = () => createSdkMcpServer({
   instructions: 'Tools for the AI Enterprizes Etsy shop. Call shop_guide first to see product types, sizes, fonts and the rules.',
   tools: [
     tool('shop_guide', 'Product types with their exact SVG sizes, the fonts you may use, and the shop rules. Read this before designing.', {}, safe(async () => ok({
-      product_types: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { what: v.label, svg_viewBox: `0 0 ${v.w} ${v.h}`, transparent_background: v.transparent, sold_as: v.digital ? 'digital download on Etsy (with Canva-editable PDF)' : 'physical product via Printify', tips: v.hint }])),
+      product_types: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { what: v.label, svg_viewBox: `0 0 ${v.w} ${v.h}`, transparent_background: v.transparent, sold_as: v.branding ? 'shop branding: the owner uploads it to Etsy' : v.digital ? 'digital download on Etsy (with Canva-editable PDF)' : 'physical product via Printify', tips: v.hint }])),
       fonts: Object.fromEntries(Object.entries(FONTS).map(([f, v]) => [f, v.use])),
       svg_rules: [
         'Vector shapes and <text> only: no <image>, no outside links, no web fonts.',
@@ -98,7 +99,7 @@ export const shopServer = () => createSdkMcpServer({
       'Turn your SVG into a finished product: print files, a Canva-editable PDF, an SVG cut file (where it fits) and Etsy listing photos. Returns a design_id and a preview image path. Always look at the preview (Read the PNG) and fix the design if anything is off.',
       {
         name: z.string().describe('Short design name, like "Boho Sun Quote"'),
-        kind: z.enum(['wall_art', 'printable', 'svg_cut_file', 'sticker', 'tshirt', 'mug']),
+        kind: z.enum(['wall_art', 'printable', 'svg_cut_file', 'sticker', 'tshirt', 'mug', 'shop_banner', 'shop_icon']),
         svg: z.string().describe('The full SVG, with the viewBox for this product type'),
         title: z.string().optional().describe('Listing title, used on the listing photos'),
       },
@@ -108,7 +109,9 @@ export const shopServer = () => createSdkMcpServer({
         const r = await makeDesign(a);
         return ok({
           design_id: r.design_id, preview: r.preview, listing_photos: r.images.map((i) => i.path), files: r.files.map((f) => f.name),
-          next: `Look at ${r.preview} (and the listing photos) with Read. If it looks right, publish it with ${KINDS[a.kind].digital ? 'shop_publish_digital' : 'shop_publish_printify'}.`,
+          next: KINDS[a.kind].branding
+            ? `Look at ${r.preview} with Read. Etsy doesn’t let apps upload banners or icons, so tell the owner the file is ready at ${r.files[0].path} and that they can upload it in Etsy: Shop Manager > Settings > Info & Appearance.`
+            : `Look at ${r.preview} (and the listing photos) with Read. If it looks right, publish it with ${KINDS[a.kind].digital ? 'shop_publish_digital' : 'shop_publish_printify'}.`,
         });
       })),
 
@@ -124,6 +127,7 @@ export const shopServer = () => createSdkMcpServer({
       },
       safe(async (a) => {
         const d = design(a.design_id);
+        if (KINDS[d.kind].branding) return fail('Banners and icons aren’t listings: the owner uploads them in Shop Manager > Settings > Info & Appearance.');
         if (!KINDS[d.kind].digital) return fail(`${d.kind} designs are physical products: use shop_publish_printify.`);
         const brand = brandProblems(a.title, a.description, a.tags.join(' '), visibleText(svgOf(a.design_id)));
         if (brand.length) return fail(`Remove ${brand.map((b) => `"${b}"`).join(', ')}: brands and characters aren’t allowed.`);
@@ -152,6 +156,29 @@ export const shopServer = () => createSdkMcpServer({
         const r = await createProduct({ kind: d.kind, title, description: a.description.trim() + PRINT_FOOTER, tags, price: a.price, colors: a.colors, printPng: d.files[0].path, publish });
         record({ at: new Date().toISOString(), channel: 'printify', kind: d.kind, title, url: r.printify_url, design_id: d.design_id, state: publish ? 'active' : 'draft', price: a.price });
         return ok(r);
+      })),
+
+    tool('shop_update_profile',
+      'Update the shop’s headline (title, up to 55 characters), announcement (shown at the top of the shop), the message sent to buyers after a purchase, and the message for digital-download buyers. Only include the fields you want to change. The shop name can only be changed by the owner.',
+      {
+        title: z.string().max(55).optional().describe('The headline under the shop name'),
+        announcement: z.string().max(5000).optional(),
+        sale_message: z.string().max(5000).optional().describe('Sent to buyers after they order'),
+        digital_sale_message: z.string().max(5000).optional().describe('Sent to buyers of digital downloads; say how to download and how to edit in Canva'),
+      },
+      safe(async (a) => {
+        const fields = Object.fromEntries(Object.entries(a).filter(([, v]) => typeof v === 'string' && v.trim())) as Record<string, string>;
+        if (!Object.keys(fields).length) return fail('Include at least one field to change.');
+        const brand = brandProblems(...Object.values(fields));
+        if (brand.length) return fail(`Remove ${brand.map((b) => `"${b}"`).join(', ')}: brands and characters aren’t allowed.`);
+        if (!autoPublish()) {
+          // The owner reviews changes first: save them as a proposal instead.
+          mkdirSync(join(SHOP_DIR, 'branding'), { recursive: true });
+          const file = join(SHOP_DIR, 'branding', 'profile-proposal.md');
+          writeFileSync(file, `# Proposed shop profile changes\n\n${Object.entries(fields).map(([k, v]) => `## ${k}\n\n${v}`).join('\n\n')}\n\nTo apply them: copy into Etsy (Shop Manager > Settings > Info & Appearance), or set SHOP_AUTO_PUBLISH=true and ask the agent again.\n`);
+          return ok({ note: `Auto-publish is off, so the changes were saved for the owner to review in ${file} instead of going live.` });
+        }
+        return ok({ ...(await updateShopProfile(fields)), note: 'Shop profile updated on Etsy.' });
       })),
 
     tool('shop_report', 'How the shop is doing: total sales, each live listing’s views and favorites, and what the agents published recently.', {},

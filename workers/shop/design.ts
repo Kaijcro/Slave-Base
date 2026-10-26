@@ -31,9 +31,9 @@ export const FONTS: Record<string, { weights: Record<string, string>; italic?: s
 const fontFiles = () => readdirSync(FONT_DIR).filter((f) => f.endsWith('.ttf')).map((f) => join(FONT_DIR, f));
 
 /* ---------------- product types ---------------- */
-export type Kind = 'wall_art' | 'printable' | 'svg_cut_file' | 'sticker' | 'tshirt' | 'mug';
+export type Kind = 'wall_art' | 'printable' | 'svg_cut_file' | 'sticker' | 'tshirt' | 'mug' | 'shop_banner' | 'shop_icon';
 interface KindSpec {
-  label: string; w: number; h: number; transparent: boolean; digital: boolean;
+  label: string; w: number; h: number; transparent: boolean; digital: boolean; branding?: boolean;
   png: { name: string; w: number; h: number }[];
   pdf?: { w: number; h: number; label: string }; // page size in points (72 per inch)
   svgFile?: boolean;
@@ -67,6 +67,16 @@ export const KINDS: Record<Kind, KindSpec> = {
   mug: {
     label: 'Mug wrap (Printify, 11 oz)', w: 990, h: 462, transparent: false, digital: false,
     png: [{ name: 'print.png', w: 2475, h: 1155 }], hint: 'Wide wrap; keep important art in the left and right thirds (the handle is in the middle).',
+  },
+  shop_banner: {
+    label: 'Etsy shop banner (big banner)', w: 1680, h: 420, transparent: false, digital: false, branding: true,
+    png: [{ name: 'banner.png', w: 3360, h: 840 }],
+    hint: 'The wide banner at the top of the shop. Phones crop the sides, so keep the shop name and key art in the middle half.',
+  },
+  shop_icon: {
+    label: 'Etsy shop icon (logo)', w: 500, h: 500, transparent: false, digital: false, branding: true,
+    png: [{ name: 'icon.png', w: 1000, h: 1000 }],
+    hint: 'Square logo shown small and often in a circle: one bold mark or initials, keep it inside the middle 80%.',
   },
 };
 
@@ -264,5 +274,5 @@ export async function makeDesign(o: { name: string; kind: Kind; svg: string; tit
   writeFileSync(join(dir, 'meta.json'), JSON.stringify({ design_id: id, kind: o.kind, name: o.name, title: o.title ?? o.name, files, images, created: new Date().toISOString() }, null, 2));
   const preview = join(dir, 'preview.png');
   writeFileSync(preview, renderPng(o.svg, 900, { background: k.transparent ? '#d8d2c8' : '#ffffff' }));
-  return { design_id: id, kind: o.kind, dir, files, images, preview, print: k.digital ? undefined : files[0].path };
+  return { design_id: id, kind: o.kind, dir, files, images, preview, print: k.digital || k.branding ? undefined : files[0].path };
 }

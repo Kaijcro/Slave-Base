@@ -49,7 +49,7 @@ async function accessToken(): Promise<Token> {
 let lastCall = 0;
 
 /** One API call. `auth` adds your sign-in (needed for anything in your own shop). */
-export async function etsy<T = any>(method: string, path: string, opts: { query?: Record<string, unknown>; json?: unknown; form?: FormData; auth?: boolean } = {}): Promise<T> {
+export async function etsy<T = any>(method: string, path: string, opts: { query?: Record<string, unknown>; json?: unknown; data?: Record<string, unknown>; form?: FormData; auth?: boolean } = {}): Promise<T> {
   const url = new URL(API + path);
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null) url.searchParams.set(k, Array.isArray(v) ? v.join(',') : String(v));
   const headers: Record<string, string> = { 'x-api-key': keys().header };
@@ -57,6 +57,13 @@ export async function etsy<T = any>(method: string, path: string, opts: { query?
   let body: BodyInit | undefined;
   if (opts.json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(opts.json); }
   if (opts.form) body = opts.form;
+  if (opts.data) {
+    // Etsy's listing and shop endpoints take form-encoded fields; lists are comma-separated.
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts.data)) if (v !== undefined && v !== null) p.append(k, Array.isArray(v) ? v.join(',') : String(v));
+    body = p;
+  }
   for (let attempt = 0; ; attempt++) {
     // Etsy allows about 10 calls a second; stay well under it.
     const wait = lastCall + 120 - Date.now();
@@ -156,7 +163,7 @@ export async function createDigitalListing(o: {
   const shop = await myShopId();
   const listing = await etsy<{ listing_id: number; url: string }>('POST', `/shops/${shop}/listings`, {
     auth: true,
-    json: {
+    data: {
       quantity: 999, title: o.title, description: o.description, price: o.price, tags: o.tags,
       who_made: 'i_did', when_made: '2020_2026', is_supply: false, taxonomy_id: o.taxonomy_id, type: 'download', should_auto_renew: false,
     },
@@ -175,8 +182,16 @@ export async function createDigitalListing(o: {
     f.append('rank', String(i + 1));
     await etsy('POST', `/shops/${shop}/listings/${id}/files`, { auth: true, form: f });
   }
-  if (o.publish) await etsy('PATCH', `/shops/${shop}/listings/${id}`, { auth: true, json: { state: 'active' } });
+  if (o.publish) await etsy('PATCH', `/shops/${shop}/listings/${id}`, { auth: true, data: { state: 'active' } });
   return { listing_id: id, url: `https://www.etsy.com/listing/${id}`, state: o.publish ? 'active' : 'draft' };
+}
+
+/** Change the shop's headline, announcement and the messages buyers get. The shop name can't be changed here. */
+export async function updateShopProfile(fields: { title?: string; announcement?: string; sale_message?: string; digital_sale_message?: string }) {
+  const shop = await myShopId();
+  const before = await etsy<any>('GET', `/shops/${shop}`);
+  const s = await etsy<any>('PUT', `/shops/${shop}`, { auth: true, data: fields });
+  return { shop_name: s.shop_name, url: s.url, before: Object.fromEntries(Object.keys(fields).map((k) => [k, before[k] ?? ''])), after: Object.fromEntries(Object.keys(fields).map((k) => [k, s[k] ?? ''])) };
 }
 
 /** How your own listings are doing. */

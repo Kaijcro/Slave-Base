@@ -99,6 +99,7 @@ AI Enterprizes runs an Etsy shop by itself. **Kofi** researches young shops (ope
 - **Digital downloads** (wall art, printables, SVG cut files, stickers) include a **Canva-editable PDF**. Buyers import it into Canva (free) and can change every word and color. Each download also has print-ready PNGs and, for cut files and stickers, an SVG.
 - **T-shirts and mugs** go through Printify, which prints and ships them.
 - **Listings** automatically say AI helped make the design, and that Printify makes physical items, as Etsy requires.
+- **Shop profile:** the agents can update the shop's headline, announcement and buyer messages, and design a banner and shop icon. Etsy doesn't let apps upload banners or icons, so you upload those yourself in *Shop Manager → Settings → Info & Appearance*. Only you can change the shop name.
 - **Safety rules:** brands, characters and celebrities are blocked, and at most `SHOP_DAILY_LIMIT` listings go live a day. The rest are saved as drafts.
 
 **One-time setup:**
