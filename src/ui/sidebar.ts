@@ -198,7 +198,7 @@ export function mountSidebar(town: Town, gameCanvas: () => HTMLCanvasElement | u
       r.b.setAttribute('aria-current', String(store.sel.type === 'agent' && store.sel.id === f.id));
     }
     for (const [k, b] of Object.entries(legBtns)) b.setAttribute('aria-current', String(store.sel.type === 'place' && store.sel.key === k));
-    $('clock').textContent = `${DAYS[town.weekday()]} ${fmtTime(town.mins)}`;
+    $('clock').textContent = town.fastDays ? `⏩ ${fmtTime(town.mins)}` : `${DAYS[town.weekday()]} ${fmtTime(town.mins)}`;
     $('kWork').textContent = String(town.workingCount());
     $('kDone').textContent = String(town.totalDone);
     const st = statusText();

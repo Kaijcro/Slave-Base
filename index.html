@@ -21,6 +21,10 @@
           <div class="pill" id="clock">8:00 AM</div>
           <div class="pill"><b id="kWork">0</b><span>working</span></div>
           <div class="pill"><b id="kDone">0</b><span>tasks done</span></div>
+          <div class="speed live-only" role="group" aria-label="Day and night speed">
+            <button type="button" aria-pressed="true" data-fast="0" title="The sky follows your real clock">Real time</button>
+            <button type="button" aria-pressed="false" data-fast="1" title="A full day and night every 4 minutes. Agents still work in real time.">Fast days</button>
+          </div>
           <div class="speed demo-only" role="group" aria-label="Simulation speed">
             <button type="button" aria-pressed="false" data-s="0">Pause</button>
             <button type="button" aria-pressed="true" data-s="1">1×</button>

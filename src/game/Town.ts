@@ -59,6 +59,8 @@ export class Town {
   placeBubble: Partial<Record<PlaceKey, { text: string; t: number }>> = {};
   /** Minutes since midnight on the first day (demo) or of today (live). */
   mins = 8 * 60;
+  /** Live mode only: run the sky's day/night cycle fast (a day every 4 minutes) instead of following the real clock. */
+  fastDays = false;
   totalDone = 0;
   graph: WalkGraph;
   /** True from the first church bell until the service ends. */
@@ -260,7 +262,8 @@ export class Town {
   }
 
   private checkService() {
-    const m = ((this.mins % 1440) + 1440) % 1440;
+    // Church follows the real calendar in live mode, even when the sky is running fast.
+    const m = this.mode === 'live' ? minutesOf(new Date()) : ((this.mins % 1440) + 1440) % 1440;
     if (!this.service) {
       if (this.weekday() === CHURCH.day && m >= CHURCH.start && m < CHURCH.end && this.serviceDay !== this.dayIndex()) this.startService();
       return;
@@ -275,8 +278,9 @@ export class Town {
 
   /* ---------------- per-frame ---------------- */
   update(dt: number, realDt: number) {
-    if (this.mode === 'live') this.mins = minutesOf(new Date());
-    else this.mins += dt * SIM_MINUTES_PER_SECOND;
+    if (this.mode === 'demo') this.mins += dt * SIM_MINUTES_PER_SECOND;
+    else if (this.fastDays) this.mins = (this.mins + realDt * SIM_MINUTES_PER_SECOND) % 1440;
+    else this.mins = minutesOf(new Date());
     for (const k of Object.keys(this.placeBubble) as PlaceKey[]) { const b = this.placeBubble[k]!; b.t -= realDt; if (b.t <= 0) delete this.placeBubble[k]; }
     if (dt > 0) this.checkService();
 

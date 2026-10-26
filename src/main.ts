@@ -21,10 +21,17 @@ town.onArrive = (id, place) => source.onArrive?.(id, place);
 
 // Header: speed buttons in demo mode, connection status in live mode.
 document.body.dataset.mode = source.mode;
-document.querySelectorAll<HTMLButtonElement>('.speed button').forEach((b) =>
+// Live mode: speed up the day/night cycle (agents still work in real time).
+document.querySelectorAll<HTMLButtonElement>('.speed button[data-fast]').forEach((b) =>
+  b.addEventListener('click', () => {
+    town.fastDays = b.dataset.fast === '1';
+    document.querySelectorAll('.speed button[data-fast]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }),
+);
+document.querySelectorAll<HTMLButtonElement>('.speed button[data-s]').forEach((b) =>
   b.addEventListener('click', () => {
     store.speed = Number(b.dataset.s);
-    document.querySelectorAll('.speed button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    document.querySelectorAll('.speed button[data-s]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }),
 );
 
