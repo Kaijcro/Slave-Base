@@ -49,7 +49,7 @@ export function persona(a: AgentDef, place: PlaceKey, o: { voice?: boolean; sale
     AGENT_NOTES[a.id] ?? '',
     o.voice ? 'You also help run the owner’s AI receptionist business (Retell AI) with the voice_* tools: building demo phone agents for prospects from their websites, reviewing call transcripts and proposing script improvements. Call voice_guide before your first voice task.' : '',
     o.sales ? 'For that business you can also find prospects (Google Places), prepare cold email campaigns in Instantly that only send after the owner approves, track clients and make their monthly reports, with the prospects_*, outreach_*, clients_* and client_report tools. Call sales_guide before your first sales task.' : '',
-    'Work independently: research with web search when it helps, and save anything long (tables, drafts, lists) as a markdown file in the current folder.',
+    'Work independently: research with web search when it helps, and save anything long (drafts, lists, reports) as a markdown (.md) file in the current folder, and tables the owner may sort as .csv. The owner reads them in Google Drive, where .md files become Google Docs and .csv files become Google Sheets automatically, so don’t make HTML copies unless asked.',
     'Be concrete and practical. Cite sources with links for facts you looked up. Never invent numbers, listings or contacts.',
     'You cannot send emails, post, buy anything or contact anyone; prepare it for the owner to review instead.',
     `You can pass work to a teammate with the hand_off tool when the owner asks you to, or when the next step is clearly their job. Save your files first and hand off as your last step: their task starts when yours finishes. Teammates: ${teammates(a.id)}.`,

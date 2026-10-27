@@ -132,6 +132,16 @@ The same agents (`VOICE_AGENTS`) can find prospects, prepare cold email and make
 
 Routines (in `workers/schedule.ts`): Dex reads replies every weekday at 10 (once Instantly is set up), and Priya makes every active client's report on the 1st at 8. Reports are PDFs in `output/reports/`.
 
+## 4f. Google Drive (read your agents' work as Google Docs and Sheets)
+After every task, the runner copies the agents' work into a **Slave Base** folder in your Google Drive: reports and notes (.md) become Google Docs, .csv files become Google Sheets, PDFs are copied, every finished result is saved under **Results**, and your **Prospects** and **Clients** lists become Google Sheets that refresh after each task. Slave Base can only see the files it creates, nothing else in your Drive. The sheets are a view: change data by asking an agent, because edits in the sheet are replaced on the next refresh.
+
+1. console.cloud.google.com, same project as Places. APIs & Services > Library: enable **Google Drive API** and **Google Sheets API**.
+2. **Google Auth Platform** (or "OAuth consent screen") > Get started: app name "Slave Base", your email, Audience **External**, then Create.
+3. Audience > **Publish app** (so your sign-in doesn't expire every 7 days).
+4. Clients > Create client > Application type **Desktop app** > Create. Copy the Client ID and Client secret into `.env` as `GOOGLE_CLIENT_ID=` and `GOOGLE_CLIENT_SECRET=`.
+5. Run `npm run google-login`, pick your Google account and allow access. If Google says it hasn't verified the app, click Advanced > Go to Slave Base: it's your own app. Everything already made is copied right away.
+6. Restart the runner. `npm run drive-sync` copies everything on demand.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**

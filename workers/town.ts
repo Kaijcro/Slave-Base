@@ -26,6 +26,8 @@ import { SCHEDULE } from './schedule';
 import { townServer, HANDOFF_TOOL } from './handoff';
 import { voiceServer, VOICE_TOOLS, voiceAgents } from './voice/tools';
 import { salesServer, SALES_TOOLS } from './sales/tools';
+import { googleReady } from './drive/google';
+import { syncAll } from './drive/sync';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -203,6 +205,8 @@ async function run(t: Task) {
   log(`${status === 'done' ? '✔' : '✖'} ${first}: ${summary}`);
   running.delete(t.id);
   await heartbeat();
+  if (status === 'done' && result) { try { saveResult(agent.name, title, t.prompt, result); } catch { /* not important */ } }
+  void driveSync();
 
   // Walk the result over to Town Hall, like a real report.
   if (status === 'done' && place !== 'hall') {
@@ -211,6 +215,36 @@ async function run(t: Task) {
     await sleep(8000);
     if (![...running.values()].some((r) => r.agent === agent.id)) await report(agent.id, 'finished', 'hall', 'Report filed at Town Hall').catch(() => {});
   }
+}
+
+/* ---------------- Google Drive (workers/drive/) ---------------- */
+let syncing = false, syncAgain = false, lastDriveError = '';
+async function driveSync() {
+  if (!googleReady()) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  try {
+    do {
+      syncAgain = false;
+      const r = await syncAll({ log });
+      if (r.docs) log(`   ☁ Google Drive: ${r.docs} file${r.docs === 1 ? '' : 's'} updated`);
+      lastDriveError = '';
+    } while (syncAgain);
+  } catch (e) {
+    const m = (e as Error).message;
+    if (m !== lastDriveError) log(`✖ Google Drive: ${m}`);
+    lastDriveError = m;
+  } finally { syncing = false; }
+}
+
+/** Every finished result is also saved as a file, so it shows up in Drive under Results. */
+function saveResult(agentName: string, title: string, prompt: string, result: string) {
+  const dir = join(OUT, 'results', agentName.split(' ')[0]);
+  mkdirSync(dir, { recursive: true });
+  const d = new Date(), pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}`;
+  const name = `${stamp} ${title.replace(/^.*handed you this task:\s*/s, '').replace(/[\\/:*?"<>|#\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)}.md`;
+  writeFileSync(join(dir, name), `# ${title.split('\n')[0].slice(0, 120)}\n\n**${agentName}** · ${d.toLocaleString()}\n\n${result}\n\n---\n\n**Your prompt**\n\n${prompt}\n`);
 }
 
 /* ---------------- routines (workers/schedule.ts) ---------------- */
@@ -270,6 +304,7 @@ process.on('SIGINT', async () => {
 
 await heartbeat();
 setInterval(() => void heartbeat(), 20_000);
+if (googleReady()) { console.log('   ☁ Copying work to Google Drive after every task.\n'); void driveSync(); setInterval(() => void driveSync(), 15 * 60_000); }
 for (;;) {
   try { await runRoutines(); await poll(); } catch (e) { log(`✖ ${(e as Error).message}`); }
   await sleep(3000);
