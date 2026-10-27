@@ -38,6 +38,23 @@ export async function defaultVoice() {
   return pick.voice_id;
 }
 
+/** What Retell checks after every call; the monthly report counts these. Results land in call_analysis.custom_analysis_data. */
+export const ANALYSIS_FIELDS = [
+  { type: 'boolean', name: 'lead_captured', description: 'True if the caller left their name and a callback number, or booked, for a job or quote.' },
+  { type: 'boolean', name: 'job_booked', description: 'True if the caller booked or confirmed an appointment, visit or job during the call.' },
+  { type: 'boolean', name: 'is_spam', description: 'True if the call was spam, a sales pitch to the business, a robocall or a wrong number.' },
+  { type: 'string', name: 'call_reason', description: 'In 2 to 5 words, why they called (e.g. "leaking water heater").' },
+];
+
+/** Adds the report fields to an existing agent if it doesn't have them. */
+export async function ensureAnalysis(agentId: string) {
+  const a = await rt<{ post_call_analysis_data?: { name: string }[] }>('GET', `/get-agent/${agentId}`);
+  const have = new Set((a.post_call_analysis_data ?? []).map((f) => f.name));
+  const missing = ANALYSIS_FIELDS.filter((f) => !have.has(f.name));
+  if (missing.length) await rt('PATCH', `/update-agent/${agentId}`, { post_call_analysis_data: [...(a.post_call_analysis_data ?? []), ...missing] });
+  return missing.map((f) => f.name);
+}
+
 /** One phone agent = a "Retell LLM" (the script) + an agent (voice and call settings) that uses it. */
 export async function createAgent(o: { name: string; prompt: string; greeting: string; voice_id?: string }) {
   const llm = await rt<{ llm_id: string }>('POST', '/create-retell-llm', {
@@ -51,6 +68,7 @@ export async function createAgent(o: { name: string; prompt: string; greeting: s
     agent_name: o.name,
     voice_id: o.voice_id || (await defaultVoice()),
     response_engine: { type: 'retell-llm', llm_id: llm.llm_id },
+    post_call_analysis_data: ANALYSIS_FIELDS,
   });
   return { agent_id: agent.agent_id, llm_id: llm.llm_id };
 }
@@ -68,11 +86,29 @@ export const pointNumber = (num: string, agentId: string) =>
 export interface Call {
   call_id: string; agent_id: string; call_status: string; from_number?: string; to_number?: string; direction?: string;
   start_timestamp?: number; duration_ms?: number; transcript?: string; recording_url?: string; disconnection_reason?: string;
-  call_analysis?: { call_summary?: string; user_sentiment?: string; call_successful?: boolean; in_voicemail?: boolean };
+  call_analysis?: { call_summary?: string; user_sentiment?: string; call_successful?: boolean; in_voicemail?: boolean; custom_analysis_data?: Record<string, unknown> };
 }
+/** POST /v3/list-calls returns { items, has_more, pagination_key }. */
+const callItems = (r: any): Call[] => (Array.isArray(r) ? r : r.items ?? r.calls ?? []);
 export const listCalls = (o: { agentId?: string; limit: number }) =>
-  rt<Call[]>('POST', '/v3/list-calls', {
+  rt('POST', '/v3/list-calls', {
     limit: o.limit, sort_order: 'descending',
     ...(o.agentId ? { filter_criteria: { agent: [{ agent_id: o.agentId }] } } : {}),
-  }).then((r: any) => (Array.isArray(r) ? r : r.calls ?? r.data ?? []) as Call[]);
+  }).then(callItems);
 export const getCall = (id: string) => rt<Call>('GET', `/v2/get-call/${id}`);
+
+/** Every call for one agent between two times (ms since 1970). */
+export async function callsBetween(agentId: string, from: number, to: number) {
+  const out: Call[] = [];
+  let key: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const r: any = await rt('POST', '/v3/list-calls', {
+      limit: 1000, sort_order: 'descending', ...(key ? { pagination_key: key } : {}),
+      filter_criteria: { agent: [{ agent_id: agentId }], start_timestamp: { type: 'range', op: 'bt', value: [from, to - 1] } },
+    });
+    out.push(...callItems(r).filter((c) => !c.start_timestamp || (c.start_timestamp >= from && c.start_timestamp < to)));
+    if (!r.has_more || !r.pagination_key) break;
+    key = r.pagination_key;
+  }
+  return out;
+}

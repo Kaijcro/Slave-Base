@@ -121,6 +121,17 @@ Agents can build a demo phone receptionist named after a prospect, from the pros
 
 What they can do: build a demo from a website and point a Demo number at it, read call logs and transcripts, and **propose** script changes. A change goes live only when you send a prompt that says `approve <id>` (hand-offs and routines can't approve). Agents can't place calls or buy anything. Demos and proposals are saved in `.town-voice/`.
 
+## 4e. Prospects and outreach (receptionist business)
+The same agents (`VOICE_AGENTS`) can find prospects, prepare cold email and make client reports.
+1. Supabase > SQL Editor: paste `supabase/sales.sql` and click Run (adds the `prospects` and `clients` tables).
+2. **Google Places** (finding businesses): console.cloud.google.com > create a project > add billing > APIs & Services > Library > enable **Places API (New)** > Credentials > Create API key (restrict it to Places API). Put it in `.env` as `GOOGLE_PLACES_API_KEY=`. Each search uses 1 to 3 requests; Google gives 1,000 free a month and the runner stops at `GOOGLE_PLACES_MONTHLY_LIMIT` (900). Google doesn't give emails, so agents find them on each business's website.
+3. **Instantly** (cold email): connect a sending inbox in Instantly (use a separate domain, not your main one, and let it warm up), then Settings > Integrations > API keys > create one with campaigns, leads, emails and accounts access. Put it in `.env` as `INSTANTLY_API_KEY=`.
+4. Restart the runner.
+
+**Nothing sends without you.** Agents build draft campaigns and add leads. When one is ready, the agent shows you every email, the sender and the lead count, with an id. It starts only when you send a prompt saying `approve <id>`, and only if nothing changed since. Agents can always pause; they can't add leads to or edit a campaign that is sending, and they never reply to emails (they draft replies for you).
+
+Routines (in `workers/schedule.ts`): Dex reads replies every weekday at 10 (once Instantly is set up), and Priya makes every active client's report on the 1st at 8. Reports are PDFs in `output/reports/`.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**

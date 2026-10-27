@@ -25,6 +25,7 @@ import { SHOP_DIR } from './shop/design';
 import { SCHEDULE } from './schedule';
 import { townServer, HANDOFF_TOOL } from './handoff';
 import { voiceServer, VOICE_TOOLS, voiceAgents } from './voice/tools';
+import { salesServer, SALES_TOOLS } from './sales/tools';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -72,6 +73,13 @@ function describe(tool: string, input: unknown): string {
     case 'mcp__voice__voice_list_calls': return 'Checking recent calls';
     case 'mcp__voice__voice_get_call': return 'Reading a call transcript';
     case 'mcp__voice__voice_propose_update': return 'Drafting a script change for your approval';
+    case 'mcp__sales__prospects_search': return `Finding ${short(String(i.business_type ?? 'businesses'), 25)} in ${short(String(i.area ?? ''), 25)}`;
+    case 'mcp__sales__outreach_create_campaign': return 'Drafting a cold email campaign';
+    case 'mcp__sales__outreach_add_leads': return 'Adding prospects to a campaign';
+    case 'mcp__sales__outreach_request_launch': return 'Asking you to approve a campaign';
+    case 'mcp__sales__outreach_launch': return 'Launching your approved campaign';
+    case 'mcp__sales__outreach_replies': return 'Reading email replies';
+    case 'mcp__sales__client_report': return 'Making a client’s monthly report';
     case 'mcp__voice__voice_apply_update': return 'Applying your approved script change';
     default: return `Using ${tool.replace(/^mcp__\w+__/, '').replace(/_/g, ' ')}`;
   }
@@ -128,22 +136,25 @@ async function run(t: Task) {
 
   // The AI receptionist business (Retell): only the agents listed in VOICE_AGENTS, and only once a key is set.
   const voice = !!process.env.RETELL_API_KEY?.trim() && voiceAgents().includes(agent.id);
+  // Prospects, cold email, clients and reports for that business: the same agents, once any of its keys is set.
+  const sales = voiceAgents().includes(agent.id) && ['RETELL_API_KEY', 'GOOGLE_PLACES_API_KEY', 'INSTANTLY_API_KEY'].some((k) => process.env[k]?.trim());
 
   const attempt = async (resume: string | undefined) => {
     let text = '', ok = false, why = '';
     for await (const msg of query({
       prompt: t.prompt,
       options: {
-        systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place, { voice }) },
-        allowedTools: [...TOOLS, HANDOFF_TOOL, ...(shop ? SHOP_TOOLS : []), ...(voice ? VOICE_TOOLS : [])],
+        systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place, { voice, sales }) },
+        allowedTools: [...TOOLS, HANDOFF_TOOL, ...(shop ? SHOP_TOOLS : []), ...(voice ? VOICE_TOOLS : []), ...(sales ? SALES_TOOLS : [])],
         mcpServers: {
           town: handoffs,
           ...(shop ? { shop: shopServer() } : {}),
           ...(voice ? { voice: voiceServer({ taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
+          ...(sales ? { sales: salesServer({ db, taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
         },
         ...(shop ? { additionalDirectories: [SHOP_DIR] } : {}),
         permissionMode: 'acceptEdits',
-        maxTurns: shop || voice ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
+        maxTurns: shop || voice || sales ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
         cwd: dir,
         resume,
         abortController: abort,
@@ -210,7 +221,9 @@ try { if (existsSync(SCHEDULE_FILE)) lastRuns = JSON.parse(readFileSync(SCHEDULE
 async function runRoutines() {
   const now = new Date(), today = now.toDateString();
   for (const r of SCHEDULE) {
-    if (!r.days.includes(now.getDay()) || now.getHours() < r.hour || lastRuns[r.id] === today) continue;
+    const due = r.monthDays ? r.monthDays.includes(now.getDate()) : (r.days ?? []).includes(now.getDay());
+    if (!due || now.getHours() < r.hour || lastRuns[r.id] === today) continue;
+    if (r.needs && !r.needs.every((k) => process.env[k]?.trim())) continue; // that business isn't set up yet
     lastRuns[r.id] = today;
     writeFileSync(SCHEDULE_FILE, JSON.stringify(lastRuns, null, 2));
     const { error } = await db.from('agent_tasks').insert({ agent_id: r.agent, prompt: r.prompt, fresh: true });

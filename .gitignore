@@ -9,3 +9,5 @@ output/
 .etsy-token.json
 .town-schedule.json
 .town-voice/
+.town-sales/
+.town-places-usage.json
