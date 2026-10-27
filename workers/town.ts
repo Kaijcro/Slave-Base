@@ -24,6 +24,7 @@ import { shopServer, SHOP_TOOLS } from './shop/tools';
 import { SHOP_DIR } from './shop/design';
 import { SCHEDULE } from './schedule';
 import { townServer, HANDOFF_TOOL } from './handoff';
+import { voiceServer, VOICE_TOOLS, voiceAgents } from './voice/tools';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -66,7 +67,13 @@ function describe(tool: string, input: unknown): string {
     case 'Read': return `Reading ${String(i.file_path ?? 'a file').split('/').pop()}`;
     case 'Glob': case 'Grep': return 'Looking through saved files';
     case 'mcp__town__hand_off': return `Handing off to ${AGENTS.find((a) => a.id === i.to)?.name.split(' ')[0] ?? 'a teammate'}`;
-    default: return `Using ${tool}`;
+    case 'mcp__voice__voice_create_demo': return `Building a demo receptionist for ${short(String(i.business_name ?? ''), 30)}`;
+    case 'mcp__voice__voice_assign_demo_number': return 'Setting up a demo phone number';
+    case 'mcp__voice__voice_list_calls': return 'Checking recent calls';
+    case 'mcp__voice__voice_get_call': return 'Reading a call transcript';
+    case 'mcp__voice__voice_propose_update': return 'Drafting a script change for your approval';
+    case 'mcp__voice__voice_apply_update': return 'Applying your approved script change';
+    default: return `Using ${tool.replace(/^mcp__\w+__/, '').replace(/_/g, ' ')}`;
   }
 }
 
@@ -119,17 +126,24 @@ async function run(t: Task) {
     },
   });
 
+  // The AI receptionist business (Retell): only the agents listed in VOICE_AGENTS, and only once a key is set.
+  const voice = !!process.env.RETELL_API_KEY?.trim() && voiceAgents().includes(agent.id);
+
   const attempt = async (resume: string | undefined) => {
     let text = '', ok = false, why = '';
     for await (const msg of query({
       prompt: t.prompt,
       options: {
-        systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place) },
-        allowedTools: [...TOOLS, HANDOFF_TOOL, ...(shop ? SHOP_TOOLS : [])],
-        mcpServers: { town: handoffs, ...(shop ? { shop: shopServer() } : {}) },
+        systemPrompt: { type: 'preset', preset: 'claude_code', append: persona(agent, place, { voice }) },
+        allowedTools: [...TOOLS, HANDOFF_TOOL, ...(shop ? SHOP_TOOLS : []), ...(voice ? VOICE_TOOLS : [])],
+        mcpServers: {
+          town: handoffs,
+          ...(shop ? { shop: shopServer() } : {}),
+          ...(voice ? { voice: voiceServer({ taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
+        },
         ...(shop ? { additionalDirectories: [SHOP_DIR] } : {}),
         permissionMode: 'acceptEdits',
-        maxTurns: shop ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
+        maxTurns: shop || voice ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
         cwd: dir,
         resume,
         abortController: abort,

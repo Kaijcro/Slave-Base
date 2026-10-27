@@ -8,3 +8,4 @@ output/
 .town-sessions.json
 .etsy-token.json
 .town-schedule.json
+.town-voice/

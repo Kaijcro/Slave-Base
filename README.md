@@ -112,6 +112,15 @@ AI Enterprizes runs an Etsy shop by itself. **Kofi** researches young shops (ope
 
 Everything the agents make is saved in `output/shop/`: research reports in `research/`, and each design's files and photos in `designs/`.
 
+## 4d. AI receptionist business (Retell AI)
+Agents can build a demo phone receptionist named after a prospect, from the prospect's website, in one step.
+1. Make an account at retellai.com (it comes with free credit) and add billing.
+2. Settings > API Keys > create a key. Put it in `.env` as `RETELL_API_KEY=`.
+3. Phone Numbers > buy 1 to 3 numbers (about $2 a month each). Give each a nickname starting with **Demo** ("Demo 1"). Agents reuse these for demos; they can't buy numbers.
+4. Restart the runner (`npm run town`). Priya, Kofi and Dex now have the voice tools (change with `VOICE_AGENTS`).
+
+What they can do: build a demo from a website and point a Demo number at it, read call logs and transcripts, and **propose** script changes. A change goes live only when you send a prompt that says `approve <id>` (hand-offs and routines can't approve). Agents can't place calls or buy anything. Demos and proposals are saved in `.town-voice/`.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**
