@@ -79,7 +79,18 @@ export const updateLlm = (id: string, fields: { general_prompt?: string; begin_m
 export const updateAgent = (id: string, fields: { voice_id?: string; agent_name?: string }) => rt('PATCH', `/update-agent/${id}`, fields);
 
 export interface PhoneNumber { phone_number: string; phone_number_pretty?: string; nickname?: string; inbound_agents?: { agent_id: string; weight: number }[]; inbound_agent_id?: string | null }
-export const listNumbers = () => rt<PhoneNumber[]>('GET', '/v2/list-phone-numbers');
+/** GET /v2/list-phone-numbers returns { items, has_more, pagination_key }. */
+export async function listNumbers() {
+  const out: PhoneNumber[] = [];
+  let key: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const r: any = await rt('GET', `/v2/list-phone-numbers?limit=1000${key ? `&pagination_key=${encodeURIComponent(key)}` : ''}`);
+    out.push(...(Array.isArray(r) ? r : r.items ?? []));
+    if (Array.isArray(r) || !r.has_more || !r.pagination_key) break;
+    key = r.pagination_key;
+  }
+  return out;
+}
 export const pointNumber = (num: string, agentId: string) =>
   rt('PATCH', `/update-phone-number/${encodeURIComponent(num)}`, { inbound_agents: [{ agent_id: agentId, weight: 1 }] });
 

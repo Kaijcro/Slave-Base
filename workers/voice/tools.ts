@@ -118,7 +118,7 @@ export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null 
       tool('voice_list_agents', 'List the phone agents in Retell (demos and client receptionists), with which numbers point at them.', {},
         safe(async () => {
           const [agents, nums] = await Promise.all([rt<any>('POST', '/v2/list-agents', {}).catch(() => rt<any>('GET', '/list-agents')), listNumbers()]);
-          const list = (Array.isArray(agents) ? agents : (agents as any).agents ?? []) as any[];
+          const list = (Array.isArray(agents) ? agents : (agents as any).items ?? (agents as any).agents ?? []) as any[];
           const seen = new Map<string, any>();
           for (const x of list) { const prev = seen.get(x.agent_id); if (!prev || (x.version ?? 0) > (prev.version ?? 0)) seen.set(x.agent_id, x); }
           return ok([...seen.values()].map((x) => ({
