@@ -142,6 +142,14 @@ After every task, the runner copies the agents' work into a **Slave Base** folde
 5. Run `npm run google-login`, pick your Google account and allow access. If Google says it hasn't verified the app, click Advanced > Go to Slave Base: it's your own app. Everything already made is copied right away.
 6. Restart the runner. `npm run drive-sync` copies everything on demand.
 
+## 4g. AI artwork (Etsy designs that look painted, and real-photo listing photos)
+Priya can generate illustrations (watercolor, hand-drawn, etc.) with Google's Gemini image model, put all the words on top as real text (still editable in Canva), and place the finished design on photo backgrounds for the listing photos. Generated images never contain words.
+1. Go to aistudio.google.com/apikey with the Google account that owns your Google Cloud project, click **Create API key**, and pick that project (it already has billing).
+2. Put it in `.env` as `GEMINI_API_KEY=`, then restart the runner.
+3. Optional: drop your own background photos (PNG or JPG, landscape, empty space in the middle) into `output/shop/backgrounds/`. Agents can also generate them.
+
+Costs: a few cents per image, capped at `IMAGE_DAILY_LIMIT` (40) a day. Digital listings only go live once they have real-photo listing photos (`SHOP_REQUIRE_PHOTO_MOCKUPS=true`). Listings already say they were designed with AI help, as Etsy requires.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**

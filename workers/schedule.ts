@@ -13,14 +13,14 @@ export const SCHEDULE: Routine[] = [
     days: [1, 4], // Monday and Thursday
     hour: 9,
     prompt:
-      'Research what is selling on Etsy right now for our shop. Call shop_guide first. Then use shop_find_hot_shops with 8–12 varied phrases ' +
-      'across printable wall art, printables (planners, checklists, signs), SVG cut files, digital stickers, and graphic T-shirts and mugs, to find ' +
-      'shops opened in the last 18 months with at least 1,000 sales. For the 8 most promising shops, use shop_top_listings. ' +
-      'Write a report to output/shop/research/latest.md (and a dated copy in the same folder) with: the shops you found (name, sales, months open, ' +
-      'sales per month, link); the patterns that sell (niches, styles, palettes, wording themes, formats, price ranges); and a ranked list of 10 ' +
-      'ORIGINAL product ideas for us, each with the product type, a one-line concept, the buyer it is for, suggested price, and 13 tag ideas. ' +
-      'No brands, characters, celebrities or sports teams. ' +
-      'Finally, use hand_off to give priya the top 3 ideas to design and publish today, attaching output/shop/research/latest.md.',
+      'Research what is selling on Etsy right now for our shop. Call shop_guide first. ' +
+      'Until Thanksgiving (Thu Nov 26, 2026) research ONLY Thanksgiving and Friendsgiving products: invitations and flyers, party games, menus, ' +
+      'place cards, table decor, signs and printables for hosts. No Christmas. After Thanksgiving, research broadly again. ' +
+      'Use shop_find_hot_shops with 8–12 varied phrases to find shops opened in the last 18 months with at least 1,000 sales, then shop_top_listings for the 8 most promising. ' +
+      'Write output/shop/research/latest.md (and a dated copy) with: the shops (name, sales, months open, sales per month, link); the styles that sell ' +
+      '(illustration style, palettes, fonts, wording, formats, price ranges); and a ranked list of 10 ORIGINAL product ideas, each with the product type, ' +
+      'a one-line concept, an art direction for the AI illustration, the buyer, suggested price and 13 tag ideas. Check shop_report so ideas don’t repeat what we have. ' +
+      'No brands, characters, celebrities or sports teams. Finally, hand_off the top 4 ideas to priya, attaching output/shop/research/latest.md.',
   },
   {
     id: 'etsy-create',
@@ -28,10 +28,13 @@ export const SCHEDULE: Routine[] = [
     days: [2, 3, 5, 6], // Tuesday, Wednesday, Friday, Saturday (on Monday and Thursday, Kofi hands her ideas right after his research)
     hour: 11,
     prompt:
-      'Create and publish today’s new products for our Etsy shop. Call shop_guide first, then read output/shop/research/latest.md. ' +
-      'Pick the 3 best ideas we haven’t made yet (call shop_report to see what’s already published). For each: design it as original SVG with ' +
-      'shop_make_design, look at the preview and fix anything that isn’t shop-quality, then publish with shop_publish_digital (find the category with ' +
-      'shop_categories) or shop_publish_printify for tshirt and mug designs. Afterwards, list what you published with links.',
+      'Create and publish today’s new products for our Etsy shop. Goal: 40 live listings by Thu Nov 12, 2026, so make 4 today. Call shop_guide first, then read output/shop/research/latest.md. ' +
+      'Until Thanksgiving (Nov 26) make ONLY Thanksgiving and Friendsgiving designs (invitations, flyers, games, menus, place cards, decor); no Christmas. ' +
+      'Pick the best ideas we haven’t made (check shop_report). For each: generate the illustration with shop_make_artwork (no words in it), Read it, ' +
+      'build the SVG with the artwork as an image layer and all words as editable <text>, then shop_make_design with 2–3 backgrounds from shop_backgrounds ' +
+      '(make a fitting one with shop_make_background if none suits). Optionally add one shop_ai_mockup and check every word. Read the preview and listing photos and fix anything ' +
+      'that isn’t shop-quality. Publish with shop_publish_digital (find the category with shop_categories). Also give any held designs from earlier real-photo listing photos ' +
+      'with shop_remake_photos and publish them. Afterwards, list what you published with links, and how many images you generated.',
   },
   {
     id: 'outreach-replies',

@@ -1,4 +1,5 @@
-import { mkdirSync, readdirSync, writeFileSync, createWriteStream } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, createWriteStream } from 'node:fs';
+import { imageSize, mimeFor } from './imagegen';
 import { join, resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import PDFDocument from 'pdfkit';
@@ -13,6 +14,11 @@ import SVGtoPDF from 'svg-to-pdfkit';
  *  - listing photos (mockups) for Etsy
  */
 export const SHOP_DIR = resolve('output/shop');
+/** AI illustrations the agents generated (shop_make_artwork). */
+export const ARTWORK_DIR = join(SHOP_DIR, 'artwork');
+/** Photo backgrounds for listing photos: the owner's own images, or ones the agents generated. */
+export const BACKGROUNDS_DIR = join(SHOP_DIR, 'backgrounds');
+const IMG_EXT = /\.(png|jpe?g)$/i;
 const FONT_DIR = resolve('workers/assets/fonts');
 
 /* ---------------- fonts: free for commercial use (SIL OFL) and all available in Canva ---------------- */
@@ -88,17 +94,45 @@ export function checkSvg(svg: string, kind: Kind): string[] {
   if (!vb) problems.push(`Add viewBox="0 0 ${k.w} ${k.h}" to the <svg>.`);
   else if (Math.abs(Number(vb[3]) / Number(vb[4]) - k.w / k.h) > 0.01) problems.push(`The viewBox must be ${k.w} × ${k.h} (it is ${vb[3]} × ${vb[4]}).`);
   if (/<script|<foreignObject|on\w+\s*=/i.test(svg)) problems.push('No scripts, event handlers or <foreignObject>.');
-  if (/<image\b/i.test(svg)) problems.push('No <image> elements: draw everything as vector shapes and text.');
+  for (const m of svg.matchAll(/<image\b[^>]*>/gi)) {
+    const ref = m[0].match(/(?:xlink:)?href\s*=\s*["']artwork:([\w-]+)["']/i)?.[1];
+    if (!ref) problems.push('<image> may only show your AI artwork: href="artwork:ARTWORK_ID" (from shop_make_artwork). Draw everything else as shapes and text.');
+    else if (!artworkFile(ref)) problems.push(`There’s no artwork called "${ref}". Use an artwork_id from shop_make_artwork.`);
+    else if (k.svgFile && kind === 'svg_cut_file') problems.push('Cut files must be pure vector shapes: don’t use AI artwork in svg_cut_file designs.');
+  }
   if (/(href|url\()\s*=?\s*["']?\s*https?:/i.test(svg) || /@import/i.test(svg)) problems.push('No outside links, web fonts or @import.');
   for (const fam of fontFamilies(svg)) if (!FONTS[fam]) problems.push(`Font "${fam}" isn’t available. Use one of: ${Object.keys(FONTS).join(', ')}.`);
   if (/style\s*=\s*["'][^"']*font-family/i.test(svg)) problems.push('Put fonts in attributes (font-family="Montserrat" font-weight="700"), not in style="".');
-  if (svg.length > 400_000) problems.push('The SVG is too large; simplify it.');
+  if (svg.replace(/href\s*=\s*["']artwork:[\w-]+["']/g, '').length > 400_000) problems.push('The SVG is too large; simplify it.');
   return [...new Set(problems)];
 }
 function fontFamilies(svg: string) {
   const out = new Set<string>();
   for (const m of svg.matchAll(/font-family\s*[:=]\s*["']?([^"';>]+)/gi)) out.add(m[1].split(',')[0].trim().replace(/^['"]|['"]$/g, ''));
   return out;
+}
+
+/* ---------------- AI artwork and photo backgrounds ---------------- */
+export function artworkFile(id: string) {
+  if (!/^[\w-]+$/.test(id) || !existsSync(ARTWORK_DIR)) return null;
+  const f = readdirSync(ARTWORK_DIR).find((n) => n.replace(IMG_EXT, '') === id && IMG_EXT.test(n));
+  return f ? join(ARTWORK_DIR, f) : null;
+}
+/** Swaps artwork:ID references for the actual image, so the renderer and the PDF can use it. */
+export function withArtwork(svg: string) {
+  return svg.replace(/((?:xlink:)?href\s*=\s*["'])artwork:([\w-]+)(["'])/gi, (whole, a: string, id: string, b: string) => {
+    const f = artworkFile(id);
+    return f ? `${a}data:${mimeFor(f)};base64,${readFileSync(f).toString('base64')}${b}` : whole;
+  });
+}
+export function listBackgrounds() {
+  if (!existsSync(BACKGROUNDS_DIR)) return [];
+  return readdirSync(BACKGROUNDS_DIR).filter((n) => IMG_EXT.test(n)).sort();
+}
+export function backgroundFile(name: string) {
+  const all = listBackgrounds();
+  const f = all.find((n) => n === name) ?? all.find((n) => n.replace(IMG_EXT, '') === name.replace(IMG_EXT, ''));
+  return f ? join(BACKGROUNDS_DIR, f) : null;
 }
 
 /* ---------------- rendering ---------------- */
@@ -230,6 +264,28 @@ function whatYouGet(art: Buffer, kind: Kind, title: string) {
 </svg>`;
 }
 
+/** The design as a printed card or print lying on a real photo background, with a soft shadow and a slight tilt. */
+const PW = 2000, PH = 1500; // 4:3, sized for Etsy without huge files
+export function photoMockup(art: Buffer, kind: Kind, bgFile: string, variant = 0) {
+  const k = KINDS[kind];
+  const bg = readFileSync(bgFile), size = imageSize(bg) ?? { w: PW, h: PH };
+  const ratio = k.w / k.h;
+  let ch = PH * 0.8, cw = ch * ratio;
+  if (cw > PW * 0.7) { cw = PW * 0.7; ch = cw / ratio; }
+  const x = (PW - cw) / 2, y = (PH - ch) / 2;
+  const tilt = [-2.2, 1.6, -0.8, 2.4][variant % 4];
+  const paper = k.transparent ? '' : `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" fill="#fffdf9"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${PW} ${PH}">
+  <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="6" dy="22" stdDeviation="20" flood-color="#2a1d12" flood-opacity="0.35"/></filter></defs>
+  <image href="data:${mimeFor(bgFile)};base64,${bg.toString('base64')}" x="0" y="0" width="${PW}" height="${PH}" preserveAspectRatio="xMidYMid slice" data-src="${size.w}x${size.h}"/>
+  <g transform="rotate(${tilt} ${PW / 2} ${PH / 2})">
+    <g filter="url(#sh)">${paper || `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" fill="#000" fill-opacity="0.001"/>`}</g>
+    ${paper}
+    <image href="${dataUri(art)}" x="${x}" y="${y}" width="${cw}" height="${ch}" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>`;
+}
+
 const BGS = ['#f6e7e1', '#e3efe7', '#e6ecf6', '#f5efd9', '#efe6f4'];
 
 /* ---------------- the whole job ---------------- */
@@ -237,42 +293,77 @@ export interface DesignResult {
   design_id: string; kind: Kind; dir: string; files: { path: string; name: string }[]; images: { path: string; name: string }[]; preview: string; print?: string;
 }
 
-export async function makeDesign(o: { name: string; kind: Kind; svg: string; title?: string }): Promise<DesignResult> {
+export async function makeDesign(o: { name: string; kind: Kind; svg: string; title?: string; backgrounds?: string[] }): Promise<DesignResult> {
   const slug = o.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'design';
   const id = `${new Date().toISOString().slice(0, 10)}-${slug}-${Math.random().toString(36).slice(2, 6)}`;
   const k = KINDS[o.kind];
   const dir = join(SHOP_DIR, 'designs', id);
   mkdirSync(join(dir, 'listing-photos'), { recursive: true });
   writeFileSync(join(dir, 'design.svg'), o.svg);
+  const svg = withArtwork(o.svg); // the AI artwork, embedded for printing
 
   const files: DesignResult['files'] = [];
   for (const p of k.png) {
     const path = join(dir, p.name);
-    writeFileSync(path, renderPng(o.svg, p.w, { background: k.transparent ? undefined : '#ffffff' }));
+    writeFileSync(path, renderPng(svg, p.w, { background: k.transparent ? undefined : '#ffffff' }));
     files.push({ path, name: `${slug}-${p.name}` });
   }
   if (k.digital && k.pdf) {
     const path = join(dir, 'editable-canva.pdf');
-    await writePdf(o.svg, o.kind, o.title ?? o.name, path);
+    await writePdf(svg, o.kind, o.title ?? o.name, path);
     files.unshift({ path, name: `${slug}-editable-canva.pdf` });
   }
   if (k.svgFile) files.push({ path: join(dir, 'design.svg'), name: `${slug}.svg` });
 
-  const images: DesignResult['images'] = [];
-  if (k.digital) {
-    const art = renderPng(o.svg, 1400, { background: k.transparent ? undefined : '#ffffff' });
-    const bg = BGS[Math.floor(Math.random() * BGS.length)];
-    const scenes = o.kind === 'wall_art' || o.kind === 'printable'
-      ? [wallMockup(art), whatYouGet(art, o.kind, o.title ?? o.name)]
-      : [cardMockup(art, bg, o.kind === 'sticker'), whatYouGet(art, o.kind, o.title ?? o.name)];
-    scenes.forEach((svg, i) => {
-      const path = join(dir, 'listing-photos', `photo-${i + 1}.png`);
-      writeFileSync(path, renderPng(svg, MW));
-      images.push({ path, name: `${slug}-${i + 1}.png` });
-    });
-  }
-  writeFileSync(join(dir, 'meta.json'), JSON.stringify({ design_id: id, kind: o.kind, name: o.name, title: o.title ?? o.name, files, images, created: new Date().toISOString() }, null, 2));
+  const bgFiles = (o.backgrounds ?? []).map((b) => backgroundFile(b)).filter((f): f is string => !!f);
+  const images = k.digital ? listingPhotos(svg, o.kind, o.title ?? o.name, slug, dir, bgFiles) : [];
+  writeFileSync(join(dir, 'meta.json'), JSON.stringify({ design_id: id, kind: o.kind, name: o.name, title: o.title ?? o.name, files, images, photo_mockups: bgFiles.length > 0, created: new Date().toISOString() }, null, 2));
   const preview = join(dir, 'preview.png');
-  writeFileSync(preview, renderPng(o.svg, 900, { background: k.transparent ? '#d8d2c8' : '#ffffff' }));
+  writeFileSync(preview, renderPng(svg, 900, { background: k.transparent ? '#d8d2c8' : '#ffffff' }));
   return { design_id: id, kind: o.kind, dir, files, images, preview, print: k.digital || k.branding ? undefined : files[0].path };
+}
+
+/** Listing photos: real-photo mockups when backgrounds are given, otherwise the simple drawn scenes. Always ends with "what you get". */
+function listingPhotos(svg: string, kind: Kind, title: string, slug: string, dir: string, bgFiles: string[]) {
+  const k = KINDS[kind];
+  mkdirSync(join(dir, 'listing-photos'), { recursive: true });
+  const art = renderPng(svg, 1400, { background: k.transparent ? undefined : '#ffffff' });
+  const scenes: { svg: string; width: number }[] = bgFiles.length
+    ? bgFiles.slice(0, 4).map((bg, i) => ({ svg: photoMockup(art, kind, bg, i), width: PW }))
+    : [{ svg: kind === 'wall_art' || kind === 'printable' ? wallMockup(art) : cardMockup(art, BGS[Math.floor(Math.random() * BGS.length)], kind === 'sticker'), width: MW }];
+  scenes.push({ svg: whatYouGet(art, kind, title), width: MW });
+  return scenes.map((sc, i) => {
+    const path = join(dir, 'listing-photos', `photo-${i + 1}.png`);
+    writeFileSync(path, renderPng(sc.svg, sc.width));
+    return { path, name: `${slug}-${i + 1}.png` };
+  });
+}
+
+/** Re-makes an existing design's listing photos on new backgrounds (keeps any AI photo mockups first). */
+export function remakePhotos(designId: string, backgrounds: string[]) {
+  const dir = join(SHOP_DIR, 'designs', designId);
+  const metaFile = join(dir, 'meta.json');
+  if (!existsSync(metaFile)) throw new Error(`No design called "${designId}".`);
+  const meta = JSON.parse(readFileSync(metaFile, 'utf8'));
+  const bgFiles = backgrounds.map((b) => backgroundFile(b)).filter((f): f is string => !!f);
+  const missing = backgrounds.filter((b) => !backgroundFile(b));
+  if (missing.length) throw new Error(`No background called ${missing.map((m) => `"${m}"`).join(', ')}. See shop_backgrounds.`);
+  const slug = String(meta.name ?? 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'design';
+  const svg = withArtwork(readFileSync(join(dir, 'design.svg'), 'utf8'));
+  const ai = (meta.images ?? []).filter((i: { path: string }) => /ai-photo/.test(i.path) && existsSync(i.path));
+  const photos = listingPhotos(svg, meta.kind, meta.title ?? meta.name, slug, dir, bgFiles);
+  meta.images = [...ai, ...photos].slice(0, 10);
+  meta.photo_mockups = bgFiles.length > 0 || ai.length > 0;
+  writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+  return meta.images as DesignResult['images'];
+}
+
+/** Adds a photo (e.g. an AI mockup) to the front of a design's listing photos. */
+export function addPhoto(designId: string, file: string) {
+  const metaFile = join(SHOP_DIR, 'designs', designId, 'meta.json');
+  const meta = JSON.parse(readFileSync(metaFile, 'utf8'));
+  meta.images = [{ path: file, name: file.split('/').pop() }, ...(meta.images ?? [])].slice(0, 10);
+  meta.photo_mockups = true;
+  writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+  return meta.images as DesignResult['images'];
 }

@@ -75,6 +75,12 @@ function describe(tool: string, input: unknown): string {
     case 'mcp__voice__voice_list_calls': return 'Checking recent calls';
     case 'mcp__voice__voice_get_call': return 'Reading a call transcript';
     case 'mcp__voice__voice_propose_update': return 'Drafting a script change for your approval';
+    case 'mcp__shop__shop_make_artwork': return `Painting artwork: ${short(String(i.name ?? ''), 40)}`;
+    case 'mcp__shop__shop_make_background': return `Making a photo background: ${short(String(i.name ?? ''), 30)}`;
+    case 'mcp__shop__shop_ai_mockup': return 'Photographing a design (AI mockup)';
+    case 'mcp__shop__shop_remake_photos': return 'Re-making listing photos';
+    case 'mcp__shop__shop_make_design': return `Designing: ${short(String(i.name ?? ''), 40)}`;
+    case 'mcp__shop__shop_publish_digital': return `Publishing to Etsy: ${short(String(i.title ?? ''), 40)}`;
     case 'mcp__sales__prospects_search': return `Finding ${short(String(i.business_type ?? 'businesses'), 25)} in ${short(String(i.area ?? ''), 25)}`;
     case 'mcp__sales__outreach_create_campaign': return 'Drafting a cold email campaign';
     case 'mcp__sales__outreach_add_leads': return 'Adding prospects to a campaign';
