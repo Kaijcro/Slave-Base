@@ -61,7 +61,10 @@ export function receptionistPrompt(o: { business: string; facts: string; website
 
 const fmtTime = (ms?: number) => (ms ? new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '');
 
-export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null | undefined; agentId: string }) {
+/** The owner can let an agent apply the script change it writes in that same task by saying so in the prompt. */
+export const SELF_APPROVE = /\bapply (it|the (change|update|script)|your (change|update|script)) without (asking|approval)\b/i;
+
+export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null | undefined; agentId: string; taskId?: number }) {
   return createSdkMcpServer({
     name: 'voice',
     version: '1.0.0',
@@ -80,6 +83,7 @@ export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null 
         'Improve a script: voice_propose_update. It does NOT change anything; it saves a proposal and returns an id.',
         'Tell the owner the id and what changes. Only the owner can approve it, by sending a prompt with "approve <id>".',
         'When the owner’s prompt says "approve <id>", call voice_apply_update with that id.',
+        'If the owner’s prompt says "apply it without asking", you may apply the proposal you saved in this same task right away (only that one).',
         '',
         'Rules: you can’t buy numbers, place outbound calls, or change a live script without the owner’s approval.',
         'Scripts must never claim to be a human, invent prices, or promise things the business didn’t state.',
@@ -188,7 +192,7 @@ export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null 
           const id = randomBytes(3).toString('hex');
           mkdirSync(PROPOSALS, { recursive: true });
           const p = {
-            id, agent_id: a.agent_id, agent_name: ag.agent_name, llm_id: llmId, by: ctx.agentId, created: new Date().toISOString(), reason: a.reason,
+            id, agent_id: a.agent_id, agent_name: ag.agent_name, llm_id: llmId, by: ctx.agentId, task: ctx.taskId ?? null, created: new Date().toISOString(), reason: a.reason,
             before: { general_prompt: cur.general_prompt, begin_message: cur.begin_message },
             after: { ...(a.new_prompt ? { general_prompt: a.new_prompt } : {}), ...(a.new_greeting ? { begin_message: a.new_greeting } : {}) },
             status: 'waiting',
@@ -205,8 +209,10 @@ export function voiceServer(ctx: { taskPrompt: string; fromAgent: string | null 
           const file = join(PROPOSALS, `${a.proposal_id}.json`);
           if (!existsSync(file)) return fail(`there’s no proposal ${a.proposal_id}.`);
           if (ctx.fromAgent) return fail('only the owner can approve script changes, and this task came from a teammate. Ask the owner to approve it.');
-          if (!new RegExp(`\\bapprove\\s+${a.proposal_id}\\b`, 'i').test(ctx.taskPrompt)) return fail(`the owner hasn’t approved ${a.proposal_id}. Tell them: send a prompt saying "approve ${a.proposal_id}".`);
           const p = JSON.parse(readFileSync(file, 'utf8'));
+          const approvedById = new RegExp(`\\bapprove\\s+${a.proposal_id}\\b`, 'i').test(ctx.taskPrompt);
+          const approvedUpfront = SELF_APPROVE.test(ctx.taskPrompt) && ctx.taskId !== undefined && p.task === ctx.taskId;
+          if (!approvedById && !approvedUpfront) return fail(`the owner hasn’t approved ${a.proposal_id}. Tell them: send a prompt saying "approve ${a.proposal_id}".`);
           if (p.status === 'applied') return ok(`Proposal ${a.proposal_id} is already live (since ${p.applied}).`);
           await updateLlm(p.llm_id, p.after);
           p.status = 'applied'; p.applied = new Date().toISOString();

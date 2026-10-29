@@ -157,7 +157,7 @@ async function run(t: Task) {
         mcpServers: {
           town: handoffs,
           ...(shop ? { shop: shopServer() } : {}),
-          ...(voice ? { voice: voiceServer({ taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
+          ...(voice ? { voice: voiceServer({ taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id, taskId: t.id }) } : {}),
           ...(sales ? { sales: salesServer({ db, taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
         },
         ...(shop ? { additionalDirectories: [SHOP_DIR] } : {}),
