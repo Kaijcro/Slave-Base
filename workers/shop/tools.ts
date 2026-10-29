@@ -143,6 +143,7 @@ export const shopServer = () => createSdkMcpServer({
         tags: z.array(z.string()).describe('13 search phrases, 20 characters max each'),
         price: z.number().min(1).max(100).describe('US dollars'),
         category_id: z.number().int().describe('From shop_categories'),
+        draft: z.boolean().default(false).describe('true = save it as a draft in Etsy for the owner to review instead of going live'),
       },
       safe(async (a) => {
         const d = design(a.design_id);
@@ -153,10 +154,10 @@ export const shopServer = () => createSdkMcpServer({
         if (needPhotos() && !JSON.parse(readFileSync(join(SHOP_DIR, 'designs', a.design_id, 'meta.json'), 'utf8')).photo_mockups)
           return fail('This design still has the old drawn listing photos. Give it real-photo ones first with shop_remake_photos (backgrounds from shop_backgrounds) or shop_ai_mockup, then publish.');
         const { title, tags } = cleanListing(a.title, a.tags);
-        const publish = autoPublish() && publishedToday() < dailyLimit();
+        const publish = !a.draft && autoPublish() && publishedToday() < dailyLimit();
         const r = await createDigitalListing({ title, description: a.description.trim() + '\n' + DIGITAL_FOOTER(d.kind), tags, price: a.price, taxonomy_id: a.category_id, images: d.images, files: d.files.slice(0, 5), publish });
         record({ at: new Date().toISOString(), channel: 'etsy', kind: d.kind, title, url: r.url, design_id: d.design_id, state: r.state, price: a.price });
-        return ok({ ...r, note: publish ? 'Live on Etsy.' : autoPublish() ? `Daily limit of ${dailyLimit()} reached, so it was saved as a draft for the owner.` : 'Saved as a draft for the owner to review.' });
+        return ok({ ...r, note: publish ? 'Live on Etsy.' : a.draft ? 'Saved as a draft in Etsy (Shop Manager > Listings > Drafts).' : autoPublish() ? `Daily limit of ${dailyLimit()} reached, so it was saved as a draft for the owner.` : 'Saved as a draft for the owner to review.' });
       })),
 
     tool('shop_publish_printify',
