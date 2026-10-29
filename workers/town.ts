@@ -17,7 +17,7 @@
 import 'dotenv/config';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { query, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
+import { query, type HookCallback, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { report, client } from './report';
 import { persona } from './personas';
 import { shopServer, SHOP_TOOLS } from './shop/tools';
@@ -105,6 +105,19 @@ async function heartbeat(stopping = false) {
   if (error) log(`✖ Heartbeat failed: ${error.message}. Did you run supabase/prompts.sql?`);
 }
 
+/* ---------------- the owner's Google Drive connector ---------------- */
+// Agents may use the owner's Google Drive connector (from their Claude account) to search, read, create and edit files.
+// Sharing, deleting and changing permissions stay off. Turn it all off with AGENT_DRIVE_ACCESS=false.
+const driveAccess = () => (process.env.AGENT_DRIVE_ACCESS ?? 'true').toLowerCase() !== 'false';
+const driveGate: CanUseTool = async (toolName, input, opts) => {
+  const isDrive = /google.?drive/i.test(toolName) || /google.?drive/i.test(opts.mcpServer?.name ?? '');
+  if (isDrive && driveAccess()) {
+    if (/share|trash|delete|permission/i.test(toolName)) return { behavior: 'deny', message: 'Sharing, deleting or changing permissions in Google Drive isn’t allowed. Tell the owner what you’d like done instead.' };
+    return { behavior: 'allow', updatedInput: input };
+  }
+  return { behavior: 'deny', message: 'That tool isn’t available to town agents.' };
+};
+
 /* ---------------- run one prompt ---------------- */
 async function run(t: Task) {
   const agent = AGENTS.find((a) => a.id === t.agent_id)!;
@@ -167,6 +180,7 @@ async function run(t: Task) {
         resume,
         abortController: abort,
         hooks: { PreToolUse: [{ hooks: [onToolUse] }] },
+        canUseTool: driveGate,
       },
     })) {
       if (msg.type === 'system' && msg.subtype === 'init') { sessions[agent.id] = msg.session_id; saveSessions(); }
