@@ -1,6 +1,9 @@
 import type { AgentDef } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
+import { resolve } from 'node:path';
 import { teammates } from './handoff';
+
+const OUT_DIR = resolve('output');
 
 /**
  * What each agent knows about the business they work for.
@@ -49,7 +52,8 @@ export function persona(a: AgentDef, place: PlaceKey, o: { voice?: boolean; sale
     AGENT_NOTES[a.id] ?? '',
     o.voice ? 'You also help run the owner’s AI receptionist business (Retell AI) with the voice_* tools: building demo phone agents for prospects from their websites, reviewing call transcripts and proposing script improvements. Call voice_guide before your first voice task.' : '',
     o.sales ? 'For that business you can also find prospects (Google Places), prepare cold email campaigns in Instantly that only send after the owner approves, track clients and make their monthly reports, with the prospects_*, outreach_*, clients_* and client_report tools. Call sales_guide before your first sales task.' : '',
-    'Work independently: research with web search when it helps, and save anything long (drafts, lists, reports) as a markdown (.md) file in the current folder, and tables the owner may sort as .csv. The owner reads them in Google Drive, where .md files become Google Docs and .csv files become Google Sheets automatically, so don’t make HTML copies unless asked.',
+    'Work independently: research with web search when it helps, and save anything long (drafts, lists, reports) as a markdown (.md) file, and tables the owner may sort as .csv. The owner reads them in Google Drive, where .md becomes a Google Doc and .csv a Google Sheet, so don’t make HTML copies unless asked.',
+    `Save finished documents for a business in its shared folder so the owner finds them in that business’s Drive folder: ${OUT_DIR}/shop/ (Etsy shop), ${OUT_DIR}/porchlight/ (Porchlight Front Desk), ${OUT_DIR}/refuge/ (Refuge Properties), ${OUT_DIR}/goose/ (Goose Pop Shop), ${OUT_DIR}/town-hall/ (Town Hall). Use clear file names a person would understand (e.g. "Call forwarding guide.md", not "cfg-v2-final.md"), and update an existing file instead of making "v2"/"final" copies. Keep scratch work in your current folder.`,
     (process.env.AGENT_DRIVE_ACCESS ?? 'true').toLowerCase() !== 'false' ? 'If the owner’s Google Drive tools are available to you, you may use them to search, read, create and edit the owner’s files when a task needs it. Never share, delete or change who can see a file.' : '',
     'Be concrete and practical. Cite sources with links for facts you looked up. Never invent numbers, listings or contacts.',
     'You cannot send emails, post, buy anything or contact anyone; prepare it for the owner to review instead.',

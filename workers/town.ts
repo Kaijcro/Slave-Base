@@ -173,7 +173,7 @@ async function run(t: Task) {
           ...(voice ? { voice: voiceServer({ taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id, taskId: t.id }) } : {}),
           ...(sales ? { sales: salesServer({ db, taskPrompt: t.prompt, fromAgent: t.from_agent, agentId: agent.id }) } : {}),
         },
-        ...(shop ? { additionalDirectories: [SHOP_DIR] } : {}),
+        additionalDirectories: [OUT, ...(shop ? [SHOP_DIR] : [])], // shared business folders (see BUSINESS_DIRS in drive/sync.ts)
         permissionMode: 'acceptEdits',
         maxTurns: shop || voice || sales ? Math.max(MAX_TURNS, 80) : MAX_TURNS, // research and design take more steps
         cwd: dir,
@@ -225,7 +225,7 @@ async function run(t: Task) {
   log(`${status === 'done' ? '✔' : '✖'} ${first}: ${summary}`);
   running.delete(t.id);
   await heartbeat();
-  if (status === 'done' && result) { try { saveResult(agent.name, title, t.prompt, result); } catch { /* not important */ } }
+  if (status === 'done' && result) { try { saveResult(agent.name, summary || title, t.prompt, result); } catch { /* not important */ } }
   void driveSync();
 
   // Walk the result over to Town Hall, like a real report.
@@ -263,8 +263,9 @@ function saveResult(agentName: string, title: string, prompt: string, result: st
   mkdirSync(dir, { recursive: true });
   const d = new Date(), pad = (n: number) => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}`;
-  const name = `${stamp} ${title.replace(/^.*handed you this task:\s*/s, '').replace(/[\\/:*?"<>|#\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)}.md`;
-  writeFileSync(join(dir, name), `# ${title.split('\n')[0].slice(0, 120)}\n\n**${agentName}** · ${d.toLocaleString()}\n\n${result}\n\n---\n\n**Your prompt**\n\n${prompt}\n`);
+  const outcome = title.replace(/^.*handed you this task:\s*/s, '').replace(/[\\/:*?"<>|#\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70);
+  const name = `${stamp.slice(0, 10)} – ${outcome}.md`;
+  writeFileSync(join(dir, existsSync(join(dir, name)) ? name.replace(/\.md$/, ` (${stamp.slice(11)}).md`) : name), `# ${outcome}\n\n**${agentName}** · ${d.toLocaleString()}\n\n${result}\n\n---\n\n**Your prompt**\n\n${prompt}\n`);
 }
 
 /* ---------------- routines (workers/schedule.ts) ---------------- */

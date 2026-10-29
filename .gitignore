@@ -13,3 +13,4 @@ output/
 .town-places-usage.json
 .google-token.json
 .town-drive.json
+.town-drive.lock
