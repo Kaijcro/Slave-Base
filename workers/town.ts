@@ -27,7 +27,7 @@ import { townServer, HANDOFF_TOOL } from './handoff';
 import { voiceServer, VOICE_TOOLS, voiceAgents } from './voice/tools';
 import { salesServer, SALES_TOOLS } from './sales/tools';
 import { googleReady } from './drive/google';
-import { syncAll } from './drive/sync';
+import { syncAll, syncFinance } from './drive/sync';
 import { AGENTS } from '../src/world/agents';
 import type { PlaceKey } from '../src/world/places';
 
@@ -325,7 +325,14 @@ process.on('SIGINT', async () => {
 
 await heartbeat();
 setInterval(() => void heartbeat(), 20_000);
-if (googleReady()) { console.log('   ☁ Copying work to Google Drive after every task.\n'); void driveSync(); setInterval(() => void driveSync(), 15 * 60_000); }
+if (googleReady()) {
+  console.log('   ☁ Copying work to Google Drive after every task.\n');
+  void driveSync();
+  setInterval(() => void driveSync(), 15 * 60_000);
+  // The Finances sheet is small, so the Town Hall vault stays fresh: re-read it every 3 minutes.
+  let finErr = '';
+  setInterval(() => { if (!syncing) syncFinance().then(() => { finErr = ''; }).catch((e) => { const m = (e as Error).message; if (m !== finErr) log(`✖ Finances sheet: ${m}`); finErr = m; }); }, 3 * 60_000);
+}
 for (;;) {
   try { await runRoutines(); await poll(); } catch (e) { log(`✖ ${(e as Error).message}`); }
   await sleep(3000);

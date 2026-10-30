@@ -244,6 +244,71 @@ function lock() {
 }
 const unlock = () => { try { unlinkSync(LOCK_FILE); } catch { /* already gone */ } };
 
+/* ---------------- Finances sheet → Supabase (the Town Hall vault) ---------------- */
+export const FIN_COMPANIES = ['SupperClubPrints (Etsy)', 'Porchlight Front Desk', 'Refuge Properties', 'Goose Pop Shop'];
+
+async function ensureFinanceSheet(s: State) {
+  let id = s.sheets.finances;
+  if (id && (await gone(id))) id = '';
+  if (id) return id;
+  const f = await g<{ id: string }>('POST', `${DRIVE}/files`, { json: { name: 'Finances', mimeType: SHEET, parents: [s.root] }, query: { fields: 'id' } });
+  id = f.id;
+  s.sheets.finances = id;
+  save(s);
+  const meta = await g<{ sheets: { properties: { sheetId: number } }[] }>('GET', `${SHEETS}/${id}`, { query: { fields: 'sheets.properties' } });
+  const sheetId = meta.sheets[0].properties.sheetId;
+  await g('POST', `${SHEETS}/${id}:batchUpdate`, { json: { requests: [
+    { updateSheetProperties: { properties: { sheetId, title: 'Entries', gridProperties: { frozenRowCount: 1 } }, fields: 'title,gridProperties.frozenRowCount' } },
+    { repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.93, green: 0.92, blue: 0.89 } } }, fields: 'userEnteredFormat(textFormat,backgroundColor)' } },
+    { repeatCell: { range: { sheetId, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 }, cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } }, fields: 'userEnteredFormat.numberFormat' } },
+    { repeatCell: { range: { sheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 2 }, cell: { userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0.00;[Red]-"$"#,##0.00' } } }, fields: 'userEnteredFormat.numberFormat' } },
+    { setDataValidation: { range: { sheetId, startRowIndex: 1, startColumnIndex: 3, endColumnIndex: 4 }, rule: { condition: { type: 'ONE_OF_LIST', values: FIN_COMPANIES.map((v) => ({ userEnteredValue: v })) }, strict: true, showCustomUi: true } } },
+    { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 }, properties: { pixelSize: 320 }, fields: 'pixelSize' } },
+    { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 }, properties: { pixelSize: 200 }, fields: 'pixelSize' } },
+  ] } });
+  await g('PUT', `${SHEETS}/${id}/values/${encodeURIComponent("'Entries'!A1:F2")}`, { json: { values: [
+    ['Date', 'Amount', 'Description', 'Company', '', 'How to use: one row per transaction. Spending is negative (-25.00), income is positive (40.00). Pick the company from the list.'],
+    [new Date().toISOString().slice(0, 10), -10, 'Example: Retell starting credit (delete this row)', 'Porchlight Front Desk'],
+  ] }, query: { valueInputOption: 'USER_ENTERED' } });
+  return id;
+}
+
+/** Excel/Sheets serial day → yyyy-mm-dd. */
+const serialDate = (n: number) => new Date(Date.UTC(1899, 11, 30) + n * 86400000).toISOString().slice(0, 10);
+
+export async function syncFinance() {
+  let db;
+  try { db = client(); } catch { return { rows: 0, skipped: true }; }
+  const s = load();
+  if (!s.root) return { rows: 0, skipped: true };
+  const id = await ensureFinanceSheet(s);
+  const meta = await g<{ sheets: { properties: { title: string } }[] }>('GET', `${SHEETS}/${id}`, { query: { fields: 'sheets.properties.title' } });
+  const tab = `'${meta.sheets[0].properties.title.replace(/'/g, "''")}'`;
+  const r = await g<{ values?: unknown[][] }>('GET', `${SHEETS}/${id}/values/${encodeURIComponent(`${tab}!A2:D`)}`, { query: { valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'SERIAL_NUMBER' } });
+  const rows: { row_number: number; entry_date: string; amount: number; description: string; company: string }[] = [];
+  const problems: { row: number; issue: string }[] = [];
+  (r.values ?? []).forEach((v, i) => {
+    const rowNo = i + 2;
+    const [d, a, desc, comp] = v as [unknown, unknown, unknown, unknown];
+    if ([d, a, desc, comp].every((x) => x === undefined || x === '')) return; // empty row
+    const date = typeof d === 'number' ? serialDate(d) : /^\d{4}-\d{2}-\d{2}/.test(String(d ?? '')) ? String(d).slice(0, 10) : (() => { const t = Date.parse(String(d ?? '')); return Number.isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10); })();
+    const amount = typeof a === 'number' ? a : Number(String(a ?? '').replace(/[$,\s]/g, '').replace(/^\((.*)\)$/, '-$1'));
+    const company = String(comp ?? '').trim();
+    if (!date) return void problems.push({ row: rowNo, issue: 'date missing' });
+    if (!Number.isFinite(amount) || String(a ?? '') === '') return void problems.push({ row: rowNo, issue: 'amount isn’t a number' });
+    if (!company) return void problems.push({ row: rowNo, issue: 'company missing' });
+    rows.push({ row_number: rowNo, entry_date: date, amount, description: String(desc ?? ''), company });
+  });
+  const del = await db.from('finance_entries').delete().gte('row_number', 0);
+  if (del.error) throw new Error(/relation|does not exist|schema cache/i.test(del.error.message) ? 'run supabase/finance.sql in Supabase first' : del.error.message);
+  for (let i = 0; i < rows.length; i += 500) {
+    const ins = await db.from('finance_entries').insert(rows.slice(i, i + 500));
+    if (ins.error) throw new Error(ins.error.message);
+  }
+  await db.from('finance_meta').upsert({ id: 1, sheet_url: `https://docs.google.com/spreadsheets/d/${id}/edit`, synced_at: new Date().toISOString(), problems });
+  return { rows: rows.length, problems: problems.length, skipped: false };
+}
+
 export async function syncAll(o: { log?: (m: string) => void } = {}) {
   if (!lock()) return { docs: 0, sheets: 0, folderUrl: '', skipped: true };
   try {
@@ -255,6 +320,7 @@ export async function syncAll(o: { log?: (m: string) => void } = {}) {
       catch (e) { o.log?.(`   Drive: couldn’t copy ${relative(OUT, p)}: ${(e as Error).message.slice(0, 160)}`); }
     }
     const sheets = await syncTables(s);
+    try { await syncFinance(); } catch (e) { o.log?.(`   Drive: couldn’t read the Finances sheet: ${(e as Error).message.slice(0, 160)}`); }
     return { docs, sheets, folderUrl: `https://drive.google.com/drive/folders/${s.root}`, skipped: false };
   } finally { unlock(); }
 }

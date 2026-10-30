@@ -19,6 +19,8 @@ export type Enterable = Exclude<PlaceKey, 'plaza'>;
 
 export interface Seat { x: number; y: number; dir: Dir; owner?: string }
 export interface Piece { y: number; canvas: HTMLCanvasElement; x: number; top: number }
+/** Something in a room you can click to open a panel (e.g. the Town Hall vault opens Finances). */
+export interface Hotspot { id: 'finance'; label: string; x: number; y: number; w: number; h: number }
 export interface Room {
   key: Enterable;
   bg: HTMLCanvasElement;
@@ -26,6 +28,7 @@ export interface Room {
   seats: Seat[];
   /** Where the door is, so the sidebar and labels can point at it. */
   door: [number, number];
+  hotspots?: Hotspot[];
   animate(g: CanvasRenderingContext2D, t: number, busy: number): void;
 }
 
@@ -503,9 +506,20 @@ function hallRoom(): Room {
   }
   seats.push({ x: 380, y: 250, dir: 'up' }, { x: 440, y: 250, dir: 'up' });
   const pl = canvas(16, 28); plant(pl.P, 8, 27, '#efe6d3'); add(170, 64, pl.c, 92); add(334, 64, pl.c, 92);
+  // the town vault: click it to open Finances
+  const VX = 14, VY = 80;
+  const { c: vault, P: V } = canvas(48, 58);
+  block(V, 1, 1, 46, 56, '#5d6577', '#3f4656', 44);
+  V(4, 15, 40, 40, OUT); V(5, 16, 38, 38, '#6e778b'); V(6, 17, 36, 1, '#8c96aa');
+  for (const [hx, hy] of [[8, 20], [8, 46]]) { V(hx, hy, 3, 6, OUT); V(hx + 1, hy + 1, 1, 4, '#c8ced9'); } // hinges
+  for (let r = 10; r > 0; r--) V(26 - r, 34 - r, r * 2, r * 2, r > 9 ? OUT : r > 8 ? '#e8c25a' : r > 3 ? '#b8902f' : '#e8c25a'); // dial
+  V(36, 30, 4, 10, OUT); V(37, 31, 2, 8, '#e8c25a'); // handle
+  V(14, 5, 20, 7, OUT); V(15, 6, 18, 5, '#2f6f5a'); V(17, 8, 14, 1, '#e8c25a'); // brass plate
+  add(VX, VY, vault, VY + 58);
+  const hotspots: Hotspot[] = [{ id: 'finance', label: 'Finances', x: VX, y: VY, w: 48, h: 58 }];
 
   return {
-    key: 'hall', bg, pieces, seats, door: [IW / 2, IH],
+    key: 'hall', bg, pieces, seats, door: [IW / 2, IH], hotspots,
     animate(g2, t, busy) {
       const Q = painter(g2);
       // clock hands go round
@@ -513,6 +527,9 @@ function hallRoom(): Room {
       for (let r = 1; r < 9; r++) Q(153 + Math.round(Math.sin(a) * r), 31 - Math.round(Math.cos(a) * r), 1, 1, OUT);
       for (let r = 1; r < 6; r++) Q(153 + Math.round(Math.sin(b) * r), 31 - Math.round(Math.cos(b) * r), 1, 1, '#a8322d');
       drawScreen(g2, inesScreen, t, true, 0);
+      // a glint sweeping across the vault dial
+      const gl = (t * 0.35) % 1;
+      if (gl < 0.3) Q(VX + 18 + Math.round(gl / 0.3 * 14), VY + 26, 2, 2, 'rgba(255,250,220,.9)');
       if (busy) { const k = (t * 0.5) % 1; Q(212, 112 - k * 10, 6, 4, `rgba(255,255,255,${1 - k})`); } // papers flutter
     },
   };

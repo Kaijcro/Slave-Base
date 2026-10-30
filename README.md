@@ -150,6 +150,14 @@ Priya can generate illustrations (watercolor, hand-drawn, etc.) with Google's Ge
 
 Costs: a few cents per image, capped at `IMAGE_DAILY_LIMIT` (40) a day. Digital listings only go live once they have real-photo listing photos (`SHOP_REQUIRE_PHOTO_MOCKUPS=true`). Listings already say they were designed with AI help, as Etsy requires.
 
+## 4h. Finances (the Town Hall vault)
+Go inside Town Hall and click the vault: a Finances overview opens with total invested, income and net, broken down by business, and every entry.
+1. Supabase > SQL Editor: paste `supabase/finance.sql` and click Run.
+2. Restart the runner (Google Drive must be connected). It creates a **Finances** sheet in your Slave Base Drive folder.
+3. Add one row per transaction: Date, Amount (spending negative like -25.00, income positive), Description, Company (pick from the list). The vault updates within about 3 minutes.
+
+Only you, signed in, can see the numbers.
+
 ## 5. Put it online and run agents on a schedule
 
 **Website (Vercel):**

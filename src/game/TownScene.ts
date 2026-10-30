@@ -103,6 +103,8 @@ export class TownScene extends Phaser.Scene {
       this.drag = null; this.pinch = null;
       if (wasDrag) { this.input.setDefaultCursor('default'); return; }
       if (store.inside) {
+        const hot = this.hotAt(p.x / S, p.y / S);
+        if (hot) { store.openPanel(hot.id); return; }
         const who = this.pickInRoom(p.x / S, p.y / S);
         if (who) store.select({ type: 'agent', id: who.id });
         return;
@@ -198,6 +200,13 @@ export class TownScene extends Phaser.Scene {
     return null;
   }
 
+  /** A clickable object in the current room (room pixels are 2 town pixels each). */
+  private hotAt(vx: number, vy: number) {
+    if (!store.inside) return null;
+    const x = vx / 2, y = vy / 2;
+    return room(store.inside).hotspots?.find((h) => x >= h.x - 2 && x <= h.x + h.w + 2 && y >= h.y - 2 && y <= h.y + h.h + 2) ?? null;
+  }
+
   private pickInRoom(vx: number, vy: number): Figure | null {
     // room pixels are 2 town pixels each
     const x = vx / 2, y = vy / 2;
@@ -211,9 +220,11 @@ export class TownScene extends Phaser.Scene {
   private hover(x: number, y: number) {
     if (store.inside) {
       const who = this.pickInRoom(x, y);
+      const hot = who ? null : this.hotAt(x, y);
       store.hover = who?.id ?? null;
+      store.hoverHot = hot?.id ?? null;
       this.hoverPlace = null;
-      this.input.setDefaultCursor(who ? 'pointer' : 'default');
+      this.input.setDefaultCursor(who || hot ? 'pointer' : 'default');
       return;
     }
     const hit = this.pick(x, y);
@@ -327,6 +338,13 @@ export class TownScene extends Phaser.Scene {
     }
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    // clickable objects: a soft pulse always, a bright outline on hover
+    for (const h of rm.hotspots ?? []) {
+      const on = store.hoverHot === h.id, pu = 0.5 + 0.5 * Math.sin(this.t * 3);
+      g.strokeStyle = on ? '#86e0bd' : `rgba(232,194,90,${0.25 + 0.35 * pu})`;
+      g.lineWidth = 1;
+      g.strokeRect(h.x - 1.5, h.y - 1.5, h.w + 3, h.h + 3);
+    }
     // evening light through the windows
     const L = TownArt.lighting(this.town.mins);
     if (L.night > 0.05) { g.fillStyle = `rgba(16,18,64,${L.night * 0.25})`; g.fillRect(0, 0, IW, IH); }
@@ -351,6 +369,10 @@ export class TownScene extends Phaser.Scene {
       else bubble(tg, firstName(p.f), p.x * 2, top - 2, chosen ? '#241b2e' : '#86e0bd', chosen ? '#86e0bd' : '#241b2e', 13);
     }
     if (!placed.length) bubble(tg, 'Nobody is in right now', W / 2, H / 2, '#f1ead8', '#241b2e', 16);
+    for (const h of rm.hotspots ?? []) {
+      const on = store.hoverHot === h.id;
+      bubble(tg, on ? `Open ${h.label}` : h.label, (h.x + h.w / 2) * 2, h.y * 2 - 4, on ? '#241b2e' : '#f1ead8', on ? '#86e0bd' : '#2f2a4d', 13);
+    }
   }
 
   private drawLabels(g: CanvasRenderingContext2D) {

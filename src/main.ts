@@ -8,6 +8,7 @@ import { TownScene } from './game/TownScene';
 import { pickSource } from './data/source';
 import { mountSidebar } from './ui/sidebar';
 import { mountMonitor } from './ui/monitor';
+import { mountFinance } from './ui/finance';
 import { LiveTasks, DemoTasks } from './data/tasks';
 import type { SimSource } from './data/sim';
 import { store } from './ui/store';
@@ -62,6 +63,7 @@ mountSidebar(town, () => game.canvas, () => source.status);
 // The agent monitor under the map, with prompting
 const tasks = source.mode === 'live' ? new LiveTasks() : new DemoTasks(AGENTS, source as SimSource, (e) => town.apply(e));
 mountMonitor(town, tasks);
+mountFinance();
 
 // Map zoom buttons
 document.querySelectorAll<HTMLButtonElement>('.zoombar button').forEach((b) =>
