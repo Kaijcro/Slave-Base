@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
-import { findHotShops, topListings, findCategory, createDigitalListing, myListingsReport, updateShopProfile } from './etsy';
+import { findHotShops, topListings, findCategory, createDigitalListing, myListingsReport, updateShopProfile, shopListings, listingDetails, updateListingFields, updateListingPrice, replaceListingImages, replaceListingFiles, type ListingState } from './etsy';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { createProduct } from './printify';
 import { makeDesign, checkSvg, KINDS, FONTS, SHOP_DIR, ARTWORK_DIR, BACKGROUNDS_DIR, listBackgrounds, remakePhotos, addPhoto, renderPng, withArtwork, type Kind } from './design';
@@ -55,11 +55,29 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 const stamp = () => new Date().toISOString().slice(0, 10);
 const rand = () => Math.random().toString(36).slice(2, 6);
 
+/** Every edit is logged with what it was before, so the owner can see and undo changes (output/shop/Edit log.md, also in Drive). */
+const SEP = '━━━━━━━━━━━━━━━━━━';
+function logEdit(e: { listing_id: number; title: string; by: string; changes: Record<string, { before: unknown; after: unknown }>; reason: string }) {
+  mkdirSync(SHOP_DIR, { recursive: true });
+  const jsonFile = join(SHOP_DIR, 'edits.json');
+  const all = existsSync(jsonFile) ? JSON.parse(readFileSync(jsonFile, 'utf8')) : [];
+  all.push({ at: new Date().toISOString(), ...e });
+  writeFileSync(jsonFile, JSON.stringify(all, null, 2));
+  const show = (v: unknown) => (Array.isArray(v) ? v.join(', ') : String(v ?? '')).replace(/\n+/g, ' ').slice(0, 300);
+  const md = ['# Etsy edit log', '', 'Every change the agents made to live listings, newest first, with what it was before.', '',
+    ...all.slice().reverse().flatMap((x: any) => [
+      `## ${x.at.slice(0, 16).replace('T', ' ')} · ${x.title}`, `[Listing ${x.listing_id}](https://www.etsy.com/listing/${x.listing_id}) · by ${x.by} · ${x.reason}`, '',
+      ...Object.entries(x.changes).map(([k, v]: [string, any]) => `- **${k}:** ${show(v.before)} → ${show(v.after)}`), '']),
+  ].join('\n');
+  writeFileSync(join(SHOP_DIR, 'Edit log.md'), md);
+}
+
 const PRINT_FOOTER = '\n\nPrinted and shipped by our production partner, Printify. Designed by our shop with the help of AI tools.';
 
 export const SHOP_TOOLS = [
   'shop_guide', 'shop_find_hot_shops', 'shop_top_listings', 'shop_categories', 'shop_make_design', 'shop_publish_digital', 'shop_publish_printify', 'shop_report', 'shop_update_profile',
   'shop_make_artwork', 'shop_make_background', 'shop_backgrounds', 'shop_remake_photos', 'shop_ai_mockup',
+  'shop_listings', 'shop_get_listing', 'shop_edit_listing', 'shop_update_listing_media',
 ].map((n) => `mcp__shop__${n}`);
 
 export const shopServer = () => createSdkMcpServer({
@@ -87,6 +105,7 @@ export const shopServer = () => createSdkMcpServer({
         'Designs must be original. Learn from what sells (niche, style, colors, wording, price), never copy another shop’s design or wording.',
         'No brands, characters, celebrities, sports teams, or song and movie quotes.',
         'Listings automatically say the design was made with AI help, and that Printify makes physical products.',
+        'Editing: shop_listings shows what is live, draft or deactivated right now; shop_get_listing shows one in full; shop_edit_listing changes title, description, tags, price or live/off; shop_update_listing_media swaps photos or files. Every edit is logged. Listings can’t be deleted.',
         `Publishing: ${autoPublish() ? `automatic, up to ${dailyLimit()} new listings a day; after that they are saved as drafts` : 'saved as drafts for the owner to publish'}. Published today: ${publishedToday()}.`,
       ],
     }))),
@@ -243,6 +262,87 @@ export const shopServer = () => createSdkMcpServer({
         writeFileSync(path, img.data);
         addPhoto(a.design_id, path);
         return ok({ photo: path, images_today: `${img.used_today}/${img.limit}`, check: `Read ${path} and compare every word with the design (${d.title}). If anything changed or looks wrong, run shop_remake_photos to drop it and use backgrounds instead.` });
+      })),
+
+    tool('shop_listings', 'All the shop’s listings straight from Etsy, by state (live, drafts, deactivated...). Use this, not shop_report, to see what is actually live right now.',
+      { state: z.enum(['active', 'draft', 'inactive', 'expired', 'sold_out', 'all']).default('all'), limit: z.number().int().min(1).max(300).default(100) },
+      safe(async (a) => {
+        const states: ListingState[] = a.state === 'all' ? ['active', 'draft', 'inactive', 'expired', 'sold_out'] : [a.state];
+        const out: Record<string, unknown> = {};
+        for (const st of states) { const l = await shopListings(st, a.limit); if (l.length || a.state !== 'all') out[st] = l; }
+        return ok(out);
+      })),
+
+    tool('shop_get_listing', 'One listing in full: title, description, tags, price, state, photos and download files.', { listing_id: z.number().int() },
+      safe(async (a) => ok(await listingDetails(a.listing_id)))),
+
+    tool('shop_edit_listing',
+      'Edit an existing listing: title, description, tags, price, or switch it live/off. Only include what you change. The "what you get / how to edit in Canva" section at the end of the description is kept automatically. Every edit is logged with the old values.',
+      {
+        listing_id: z.number().int(),
+        title: z.string().min(10).max(140).optional(),
+        description: z.string().min(40).max(8000).optional().describe('The main description only; the standard footer is kept'),
+        tags: z.array(z.string()).min(1).max(13).optional().describe('All tags to keep (replaces the list), 20 characters max each'),
+        price: z.number().min(1).max(200).optional().describe('US dollars'),
+        state: z.enum(['active', 'inactive']).optional().describe('active = live, inactive = deactivated (hidden, can be turned back on)'),
+        reason: z.string().min(5).max(300).describe('Why: shown in the edit log for the owner'),
+      },
+      safe(async (a) => {
+        if (!a.title && !a.description && !a.tags && a.price === undefined && !a.state) return fail('Include at least one thing to change.');
+        const cur = await listingDetails(a.listing_id);
+        const brand = brandProblems(a.title ?? '', a.description ?? '', (a.tags ?? []).join(' '));
+        if (brand.length) return fail(`Remove ${brand.map((b) => `"${b}"`).join(', ')}: brands and characters aren’t allowed.`);
+        if (a.state === 'active' && cur.state !== 'active') {
+          if (!autoPublish()) return fail('Auto-publish is off, so only the owner can make listings live. Leave it as is and tell the owner.');
+          if (publishedToday() >= dailyLimit()) return fail(`Today’s limit of ${dailyLimit()} new live listings is reached. Try tomorrow.`);
+          const d = readLedger().find((p) => p.url.includes(String(a.listing_id)));
+          if (needPhotos() && d) {
+            const metaFile = join(SHOP_DIR, 'designs', d.design_id, 'meta.json');
+            if (existsSync(metaFile) && !JSON.parse(readFileSync(metaFile, 'utf8')).photo_mockups)
+              return fail('This listing still has the old drawn photos. Give it real-photo ones first (shop_remake_photos on its design, then shop_update_listing_media), then make it live.');
+          }
+        }
+        const fields: { title?: string; description?: string; tags?: string[]; state?: 'active' | 'inactive' } = {};
+        if (a.title || a.tags) {
+          const c = cleanListing(a.title ?? cur.title, a.tags ?? cur.tags);
+          if (a.title) fields.title = c.title;
+          if (a.tags) fields.tags = c.tags;
+        }
+        if (a.description) {
+          const i = cur.description.indexOf(SEP);
+          fields.description = a.description.trim() + (i >= 0 ? '\n\n' + cur.description.slice(i) : '');
+        }
+        if (a.state) fields.state = a.state;
+        if (Object.keys(fields).length) await updateListingFields(a.listing_id, fields);
+        if (a.price !== undefined) await updateListingPrice(a.listing_id, a.price);
+        const changes: Record<string, { before: unknown; after: unknown }> = {};
+        if (fields.title) changes.title = { before: cur.title, after: fields.title };
+        if (fields.tags) changes.tags = { before: cur.tags, after: fields.tags };
+        if (fields.description) changes.description = { before: cur.description.split(SEP)[0].trim(), after: a.description };
+        if (a.price !== undefined) changes.price = { before: cur.price, after: `${a.price.toFixed(2)} USD` };
+        if (fields.state) changes.state = { before: cur.state, after: fields.state };
+        if (fields.state === 'active' && cur.state !== 'active') record({ at: new Date().toISOString(), channel: 'etsy', kind: 'edit', title: fields.title ?? cur.title, url: cur.url, design_id: '', state: 'active', price: a.price ?? 0 });
+        logEdit({ listing_id: a.listing_id, title: fields.title ?? cur.title, by: 'agent', changes, reason: a.reason });
+        return ok({ updated: a.listing_id, url: cur.url, changed: Object.keys(changes), note: 'Logged in Etsy shop > Edit log.' });
+      })),
+
+    tool('shop_update_listing_media',
+      'Replace a listing’s photos and/or download files with a design’s (e.g. after shop_remake_photos gave it real-photo mockups, or after fixing the design).',
+      { listing_id: z.number().int(), design_id: z.string(), photos: z.boolean().default(true), files: z.boolean().default(false), reason: z.string().min(5).max(300) },
+      safe(async (a) => {
+        if (!a.photos && !a.files) return fail('Choose photos, files or both.');
+        const d = design(a.design_id);
+        const meta = JSON.parse(readFileSync(join(SHOP_DIR, 'designs', a.design_id, 'meta.json'), 'utf8'));
+        if (a.photos && needPhotos() && !meta.photo_mockups) return fail('This design only has the old drawn photos. Run shop_remake_photos on it first.');
+        const cur = await listingDetails(a.listing_id);
+        const changes: Record<string, { before: unknown; after: unknown }> = {};
+        if (a.photos) { const n = await replaceListingImages(a.listing_id, d.images); changes.photos = { before: `${cur.images.length} photos`, after: `${n} photos from ${a.design_id}` }; }
+        if (a.files) {
+          if (cur.type !== 'download' && cur.files.length === 0) return fail('This isn’t a digital-download listing.');
+          const n = await replaceListingFiles(a.listing_id, d.files.slice(0, 5)); changes.files = { before: cur.files.map((f) => f.name), after: `${n} files from ${a.design_id}` };
+        }
+        logEdit({ listing_id: a.listing_id, title: cur.title, by: 'agent', changes, reason: a.reason });
+        return ok({ updated: a.listing_id, url: cur.url, changed: Object.keys(changes) });
       })),
 
     tool('shop_update_profile',

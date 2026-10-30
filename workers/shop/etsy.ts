@@ -205,3 +205,87 @@ export async function myListingsReport() {
       .sort((a, b) => (b.views ?? 0) - (a.views ?? 0)),
   };
 }
+
+/* ---------------- editing existing listings ---------------- */
+export type ListingState = 'active' | 'draft' | 'inactive' | 'expired' | 'sold_out';
+
+/** The shop's listings straight from Etsy (so states are always current). */
+export async function shopListings(state: ListingState, limit = 100) {
+  const shop = await myShopId();
+  const out: any[] = [];
+  for (let offset = 0; out.length < limit; offset += 100) {
+    const r = await etsy<{ results: any[]; count: number }>('GET', `/shops/${shop}/listings`, { auth: true, query: { state, limit: Math.min(100, limit - out.length), offset } });
+    out.push(...(r.results ?? []));
+    if ((r.results ?? []).length < 100) break;
+  }
+  return out.map((l) => ({ listing_id: l.listing_id, title: l.title, state: l.state, price: money(l.price), views: l.views ?? null, favorites: l.num_favorers ?? 0, tags: (l.tags ?? []).length, type: l.listing_type, updated: new Date((l.updated_timestamp ?? l.last_modified_timestamp ?? 0) * 1000).toISOString().slice(0, 10), url: l.url ?? `https://www.etsy.com/listing/${l.listing_id}` }));
+}
+
+export async function listingDetails(id: number) {
+  const shop = await myShopId();
+  const l = await etsy<any>('GET', `/listings/${id}`, { auth: true, query: { includes: 'Images' } });
+  if (l.shop_id && l.shop_id !== shop) throw new Error('That listing isn’t in our shop.');
+  const files = await etsy<{ results: any[] }>('GET', `/shops/${shop}/listings/${id}/files`, { auth: true }).then((r) => r.results ?? []).catch(() => []);
+  return {
+    listing_id: l.listing_id, state: l.state, title: l.title, description: l.description, tags: l.tags ?? [], price: money(l.price), quantity: l.quantity,
+    taxonomy_id: l.taxonomy_id, type: l.listing_type, url: l.url ?? `https://www.etsy.com/listing/${id}`,
+    images: (l.images ?? []).map((i: any) => ({ listing_image_id: i.listing_image_id, rank: i.rank, url: i.url_570xN ?? i.url_fullxfull })),
+    files: files.map((f: any) => ({ listing_file_id: f.listing_file_id, name: f.filename, size: f.filesize })),
+  };
+}
+
+/** Title, description, tags and state (active / inactive / draft). Form-encoded, like createDraftListing. */
+export async function updateListingFields(id: number, fields: { title?: string; description?: string; tags?: string[]; state?: 'active' | 'inactive' }) {
+  const shop = await myShopId();
+  return etsy<any>('PATCH', `/shops/${shop}/listings/${id}`, { auth: true, data: fields });
+}
+
+/** Etsy keeps price in the listing's inventory: read it, change every offering's price, write it all back. */
+export async function updateListingPrice(id: number, price: number) {
+  const inv = await etsy<any>('GET', `/listings/${id}/inventory`, { auth: true });
+  const products = (inv.products ?? []).map((p: any) => ({
+    sku: p.sku ?? '',
+    property_values: (p.property_values ?? []).map((v: any) => ({ property_id: v.property_id, value_ids: v.value_ids, scale_id: v.scale_id ?? null, property_name: v.property_name, values: v.values })),
+    offerings: (p.offerings ?? []).filter((o: any) => !o.is_deleted).map((o: any) => ({
+      price, quantity: o.quantity, is_enabled: o.is_enabled, ...(o.readiness_state_id ? { readiness_state_id: o.readiness_state_id } : {}),
+    })),
+  }));
+  if (!products.length) throw new Error('Etsy returned no inventory for this listing, so the price can’t be changed here.');
+  await etsy('PUT', `/listings/${id}/inventory`, {
+    auth: true,
+    json: { products, price_on_property: inv.price_on_property ?? [], quantity_on_property: inv.quantity_on_property ?? [], sku_on_property: inv.sku_on_property ?? [], ...(inv.readiness_state_on_property ? { readiness_state_on_property: inv.readiness_state_on_property } : {}) },
+  });
+}
+
+/** Puts new photos on a listing: uploads the new ones first, then removes the old, so it's never left without photos. */
+export async function replaceListingImages(id: number, images: { path: string; name: string }[]) {
+  const shop = await myShopId();
+  const old = await etsy<{ results: any[] }>('GET', `/listings/${id}/images`, { auth: true }).then((r) => r.results ?? []);
+  // Etsy allows 10 photos: make room first if needed (keeping at least one old photo until the new ones are up).
+  const room = 10 - images.length;
+  for (const img of old.slice(Math.max(1, room))) await etsy('DELETE', `/shops/${shop}/listings/${id}/images/${img.listing_image_id}`, { auth: true });
+  const kept = old.slice(0, Math.max(1, room));
+  for (const [i, img] of images.slice(0, 10).entries()) {
+    const f = new FormData();
+    f.append('image', new Blob([readFileSync(img.path)], { type: 'image/png' }), img.name);
+    f.append('rank', String(i + 1));
+    await etsy('POST', `/shops/${shop}/listings/${id}/images`, { auth: true, form: f });
+  }
+  for (const img of kept) await etsy('DELETE', `/shops/${shop}/listings/${id}/images/${img.listing_image_id}`, { auth: true }).catch(() => {});
+  return images.length;
+}
+
+/** Swaps a digital listing's download files for new ones. */
+export async function replaceListingFiles(id: number, files: { path: string; name: string }[]) {
+  const shop = await myShopId();
+  const old = await etsy<{ results: any[] }>('GET', `/shops/${shop}/listings/${id}/files`, { auth: true }).then((r) => r.results ?? []);
+  for (const [i, file] of files.slice(0, 5).entries()) {
+    const f = new FormData();
+    f.append('file', new Blob([readFileSync(file.path)]), file.name);
+    f.append('name', file.name);
+    f.append('rank', String(i + 1));
+    await etsy('POST', `/shops/${shop}/listings/${id}/files`, { auth: true, form: f });
+  }
+  for (const f of old) await etsy('DELETE', `/shops/${shop}/listings/${id}/files/${f.listing_file_id}`, { auth: true }).catch(() => {});
+  return files.length;
+}
