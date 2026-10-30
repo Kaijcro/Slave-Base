@@ -275,17 +275,21 @@ export async function replaceListingImages(id: number, images: { path: string; n
   return images.length;
 }
 
-/** Swaps a digital listing's download files for new ones. */
+/** Swaps a digital listing's download files for new ones. Etsy allows 5 files, so old ones are removed first to make room. */
 export async function replaceListingFiles(id: number, files: { path: string; name: string }[]) {
   const shop = await myShopId();
+  const next = files.slice(0, 5);
   const old = await etsy<{ results: any[] }>('GET', `/shops/${shop}/listings/${id}/files`, { auth: true }).then((r) => r.results ?? []);
-  for (const [i, file] of files.slice(0, 5).entries()) {
+  // Make room: remove just enough old files for the new ones to fit, upload, then remove the rest.
+  const removeFirst = Math.max(0, old.length + next.length - 5);
+  for (const f of old.slice(0, removeFirst)) await etsy('DELETE', `/shops/${shop}/listings/${id}/files/${f.listing_file_id}`, { auth: true });
+  for (const [i, file] of next.entries()) {
     const f = new FormData();
     f.append('file', new Blob([readFileSync(file.path)]), file.name);
     f.append('name', file.name);
     f.append('rank', String(i + 1));
     await etsy('POST', `/shops/${shop}/listings/${id}/files`, { auth: true, form: f });
   }
-  for (const f of old) await etsy('DELETE', `/shops/${shop}/listings/${id}/files/${f.listing_file_id}`, { auth: true }).catch(() => {});
-  return files.length;
+  for (const f of old.slice(removeFirst)) await etsy('DELETE', `/shops/${shop}/listings/${id}/files/${f.listing_file_id}`, { auth: true });
+  return next.length;
 }
